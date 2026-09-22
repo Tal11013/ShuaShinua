@@ -7,7 +7,6 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "server": "tsx watch server/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
@@ -16,7 +15,8 @@
     "db:gen-types:local": "node scripts/gen-types.mjs --local",
     "db:reset": "supabase db reset",
     "db:push": "supabase db push",
-    "db:migration:new": "supabase migration new"
+    "db:migration:new": "supabase migration new",
+    "test": "tsx tests/domain.test.ts"
   },
   "repository": {
     "type": "git",
@@ -32,9 +32,12 @@
   "description": "",
   "dependencies": {
     "@supabase/supabase-js": "^2.117.0",
+    "@tanstack/react-router": "^1.170.38",
     "express": "^5.1.0",
+    "lucide-react": "^1.47.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
