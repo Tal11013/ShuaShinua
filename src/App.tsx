@@ -6,13 +6,16 @@ type HealthResponse = {
 };
 
 const models = [
-  "Room",
+  "User",
+  "Group",
+  "UserGroup",
+  "GroupCode",
   "Location",
-  "IdfGroup",
-  "Item",
-  "PackingUnit",
-  "MovingUnit",
-  "RoomMapping",
+  "Room",
+  "ItemType",
+  "Category",
+  "SubCategory",
+  "MappingReport",
 ];
 
 export function App() {

@@ -20,7 +20,7 @@ if (!local && (!projectId || projectId.startsWith("your-"))) {
 const target = local ? ["--local"] : ["--project-id", projectId];
 const result = spawnSync(
   "supabase",
-  ["gen", "types", "typescript", ...target, "--schema", "public"],
+  ["gen", "types", "typescript", ...target, "--schema", "public,moving_south_operation"],
   { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
 );
 
