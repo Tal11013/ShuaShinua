@@ -142,6 +142,60 @@ TOOLS_SCHEMA = [
                 "required": ["expression"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_team_equipment_summary",
+            "description": "Returns total items, packed items, and missing items for a specific team (צוות).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "team_name": {
+                        "type": "string",
+                        "description": "The exact name of the team, e.g., 'צוות 1'"
+                    }
+                },
+                "required": ["team_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_room_details",
+            "description": "Returns details about a specific room including its status, the team assigned, and capacity.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "building": {
+                        "type": "integer",
+                        "description": "The building number"
+                    },
+                    "room_number": {
+                        "type": "integer",
+                        "description": "The room number"
+                    }
+                },
+                "required": ["building", "room_number"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_expensive_unpacked_items",
+            "description": "Returns a list of unpacked items that cost more than a specified minimum price.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "min_price": {
+                        "type": "integer",
+                        "description": "The minimum price of the items (default is 1000)"
+                    }
+                }
+            }
+        }
     }
 ]
 
@@ -153,7 +207,10 @@ AVAILABLE_FUNCTIONS = {
     "generate_branch_packing_pie_chart": tools.generate_branch_packing_pie_chart,
     "generate_truck_status_bar_chart": tools.generate_truck_status_bar_chart,
     "generate_generic_bar_chart": tools.generate_generic_bar_chart,
-    "calculate": tools.calculate
+    "calculate": tools.calculate,
+    "get_team_equipment_summary": tools.get_team_equipment_summary,
+    "get_room_details": tools.get_room_details,
+    "get_expensive_unpacked_items": tools.get_expensive_unpacked_items
 }
 
 
@@ -227,6 +284,13 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
                         )
                     elif function_name == "calculate":
                         function_response = function_to_call(expression=function_args.get("expression"))
+                    elif function_name == "get_team_equipment_summary":
+                        function_response = function_to_call(team_name=function_args.get("team_name"))
+                    elif function_name == "get_room_details":
+                        function_response = function_to_call(building=function_args.get("building"), room_number=function_args.get("room_number"))
+                    elif function_name == "get_expensive_unpacked_items":
+                        min_price = function_args.get("min_price", 1000)
+                        function_response = function_to_call(min_price=min_price)
                     else:
                         function_response = function_to_call()
                 except Exception as e:

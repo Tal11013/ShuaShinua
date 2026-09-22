@@ -46,4 +46,31 @@ def test_math_capability():
     assert calc_tool_called, f"Agent did not call the calculate tool. Answer: {answer}"
     
     # The mathematical answer is 5721004
-    assert "5721004" in answer or "5,721,004" in answer, f"Agent failed to report the correct math result. Answer was: {answer}"
+    # Strip spaces and commas to handle different LLM number formats (e.g., 5 721 004 or 5,721,004)
+    normalized_answer = answer.replace(",", "").replace(" ", "").replace("\u202f", "")
+    assert "5721004" in normalized_answer, f"Agent failed to report the correct math result. Answer was: {answer}"
+
+def test_team_equipment_query():
+    """Test if the agent can query specific team equipment."""
+    prompt = "מה מצב הציוד של צוות 1?"
+    answer, history = run_conversation(prompt)
+    
+    tool_calls = [msg for msg in history if isinstance(msg, dict) and msg.get("role") == "tool" and msg.get("name") == "get_team_equipment_summary"]
+    assert len(tool_calls) > 0, f"Agent did not call the team equipment tool. Answer: {answer}"
+
+def test_room_details_query():
+    """Test if the agent can query room details."""
+    # Since building 1 room 10 is generated in mock_db, it might exist
+    prompt = "מה קורה בחדר 10 בבניין 1? איזה צוות שם ומה המצב שלו?"
+    answer, history = run_conversation(prompt)
+    
+    tool_calls = [msg for msg in history if isinstance(msg, dict) and msg.get("role") == "tool" and msg.get("name") == "get_room_details"]
+    assert len(tool_calls) > 0, f"Agent did not call the room details tool. Answer: {answer}"
+
+def test_expensive_items_query():
+    """Test if the agent can find expensive unpacked items."""
+    prompt = "אילו פריטים יקרים מעל 2000 שקלים עדיין לא נארזו?"
+    answer, history = run_conversation(prompt)
+    
+    tool_calls = [msg for msg in history if isinstance(msg, dict) and msg.get("role") == "tool" and msg.get("name") == "get_expensive_unpacked_items"]
+    assert len(tool_calls) > 0, f"Agent did not call the expensive items tool. Answer: {answer}"

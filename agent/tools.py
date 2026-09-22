@@ -2,7 +2,9 @@ import sqlite3
 import json
 from typing import Dict, List, Any
 
-DB_PATH = "moving_project.db"
+import os
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "moving_project.db")
 
 def _get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -116,6 +118,116 @@ def get_active_trucks() -> List[Dict[str, Any]]:
         })
         
     return trucks
+
+def get_team_equipment_summary(team_name: str) -> Dict[str, Any]:
+    """
+    Returns total items, packed items, and missing items for a specific team (צוות).
+    """
+    conn = _get_connection()
+    cursor = conn.cursor()
+    
+    query = '''
+        SELECT 
+            COUNT(i.catalog_id) as total_items,
+            SUM(CASE WHEN i.item_status = 'PACKED' THEN 1 ELSE 0 END) as packed_items,
+            SUM(CASE WHEN i.item_status = 'MISSING' THEN 1 ELSE 0 END) as missing_items
+        FROM items i
+        JOIN rooms r ON i.room_id = r.room_id
+        JOIN idf_groups g ON r.group_id = g.id
+        WHERE g.tzevet = ?
+    '''
+    
+    cursor.execute(query, (team_name,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row or row["total_items"] == 0:
+        return {"error": f"Team '{team_name}' not found or has no items."}
+        
+    return {
+        "team_name": team_name,
+        "total_items": row["total_items"] or 0,
+        "packed_items": row["packed_items"] or 0,
+        "missing_items": row["missing_items"] or 0
+    }
+
+def get_room_details(building: int, room_number: int) -> Dict[str, Any]:
+    """
+    Returns details about a specific room including its status, the team assigned, and capacity.
+    """
+    conn = _get_connection()
+    cursor = conn.cursor()
+    
+    query = '''
+        SELECT 
+            r.room_status,
+            r.people_size,
+            r.is_mapped,
+            g.tzevet as team_name,
+            g.anaf as branch_name
+        FROM rooms r
+        JOIN locations l ON r.location_id = l.location_id
+        JOIN idf_groups g ON r.group_id = g.id
+        WHERE l.building = ? AND l.room_number = ?
+    '''
+    
+    cursor.execute(query, (building, room_number))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
+        return {"error": f"Room {room_number} in building {building} not found."}
+        
+    return {
+        "building": building,
+        "room_number": room_number,
+        "status": row["room_status"],
+        "capacity": row["people_size"],
+        "is_mapped": bool(row["is_mapped"]),
+        "team": row["team_name"],
+        "branch": row["branch_name"]
+    }
+
+def get_expensive_unpacked_items(min_price: int = 1000) -> List[Dict[str, Any]]:
+    """
+    Returns a list of unpacked items that cost more than a specified minimum price.
+    """
+    conn = _get_connection()
+    cursor = conn.cursor()
+    
+    query = '''
+        SELECT 
+            i.catalog_id,
+            i.description,
+            i.price,
+            i.item_status,
+            l.building,
+            l.room_number,
+            g.tzevet as team_name
+        FROM items i
+        JOIN rooms r ON i.room_id = r.room_id
+        JOIN locations l ON r.location_id = l.location_id
+        JOIN idf_groups g ON r.group_id = g.id
+        WHERE i.price >= ? AND i.item_status != 'PACKED'
+        ORDER BY i.price DESC
+    '''
+    
+    cursor.execute(query, (min_price,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    items = []
+    for row in rows:
+        items.append({
+            "catalog_id": row["catalog_id"],
+            "description": row["description"],
+            "price": row["price"],
+            "status": row["item_status"],
+            "location": f"Building {row['building']}, Room {row['room_number']}",
+            "team": row["team_name"]
+        })
+        
+    return items
 
 def generate_branch_packing_pie_chart(branch_name: str) -> Dict[str, str]:
     """
