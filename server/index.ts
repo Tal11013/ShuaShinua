@@ -1,4 +1,5 @@
 import "./env.js";
+import cors from "cors";
 import express from "express";
 import { checkSupabaseConnection } from "./supabaseHealth.js";
 import { errorHandler } from "./http.js";
@@ -16,8 +17,17 @@ import {
 } from "./routes/operations.js";
 
 const app = express();
-const port = Number(process.env.PORT ?? 3001);
+const port = Number(process.env.PORT || 3001);
 
+// The deployed client lives on another origin (Vercel). CLIENT_URL may list
+// several origins separated by commas, e.g. production plus a preview URL.
+// Locally the Vite dev server proxies /api, so CORS isn't needed there.
+const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 
 app.get("/api/health", (_request, response) => {

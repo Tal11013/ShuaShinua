@@ -443,8 +443,10 @@ relocationRouter.post("/transports", authenticate, async (request: AuthedRequest
     await ops().rpc("create_transport", {
       p_created_by: access.user.user_id,
       p_moving_type: movingType,
-      p_vehicle_number: isCar ? null : vehicleNumber,
-      p_vehicle_details: isCar ? vehicleDetails : null,
+      // Generated types mark every function argument non-null, but SQL
+      // functions accept NULL; exactly one of these is set per vehicle type.
+      p_vehicle_number: (isCar ? null : vehicleNumber) as string,
+      p_vehicle_details: (isCar ? vehicleDetails : null) as string,
       p_packing_ids: packingIds,
     }),
     "אחת האריזות כבר שובצה להובלה אחרת.",
