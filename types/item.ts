@@ -14,4 +14,5 @@ export interface Item {
   price: number;
   item_status: ItemStatus;
   is_balmas: boolean;
+  quantity?: number;
 }

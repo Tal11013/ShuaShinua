@@ -5,6 +5,8 @@ import type {
   MouseEventHandler,
   ReactNode,
 } from "react";
+import { BottomNav } from "./BottomNav";
+import { useRelocation } from "../state/relocation";
 
 export function MobileShell({
   title,
@@ -19,6 +21,8 @@ export function MobileShell({
   footer?: ReactNode;
   children: ReactNode;
 }) {
+  const { currentUser, logout } = useRelocation();
+
   return (
     <div className="mobile-shell" dir="rtl">
       <header className="shell-header">
@@ -31,11 +35,18 @@ export function MobileShell({
           <div>
             <h1>{title}</h1>
             {subtitle ? <p>{subtitle}</p> : null}
+            {currentUser ? <p>{currentUser.name}</p> : null}
           </div>
+          {currentUser ? (
+            <button className="logout-button" type="button" onClick={logout}>
+              יציאה
+            </button>
+          ) : null}
         </div>
       </header>
       <main className="shell-content">{children}</main>
       {footer ? <footer className="shell-footer">{footer}</footer> : null}
+      <BottomNav />
     </div>
   );
 }
@@ -83,4 +94,3 @@ export function RowButton({
     </button>
   );
 }
-

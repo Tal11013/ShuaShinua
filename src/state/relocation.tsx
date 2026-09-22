@@ -8,10 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import {
-  ItemStatus,
-  MovingUnitStatus,
-  PackingUnitStatus,
-  RoomStatus,
+  type AuthenticatedUser,
   type BoxType,
   type IdfGroup,
   type Item,
@@ -21,227 +18,285 @@ import {
   type PackingUnit,
   type Room,
 } from "../../types";
-import { buildSeedState } from "./seed";
+import type { RelocationData } from "../domain/seed";
 
-const STORAGE_KEY = "relocation-state-v1";
+const USER_STORAGE_KEY = "relocation-user-id";
 
-type RelocationState = {
-  groups: IdfGroup[];
-  locations: Location[];
-  rooms: Room[];
-  units: PackingUnit[];
-  transports: MovingUnit[];
-};
-
-type RelocationContextValue = RelocationState & {
-  createPacking: (
-    roomId: Room["room_id"],
-    boxType: BoxType,
-    itemIds: Item["catalog_id"][],
-  ) => void;
-  createTransport: (
-    movingType: MovingType,
-    packingIds: PackingUnit["packing_id"][],
-  ) => void;
+type RelocationContextValue = RelocationData & {
+  currentUser: AuthenticatedUser | null;
+  users: AuthenticatedUser[];
+  loading: boolean;
+  error: string | null;
+  submitting: boolean;
+  login: (personalNumber: string) => Promise<boolean>;
+  logout: () => void;
+  setUserId: (userId: string) => void;
+  reload: () => Promise<void>;
+  createPacking: (payload: {
+    unit_id: string;
+    source_room_id: Room["room_id"];
+    destination_room_id: Room["room_id"];
+    box_type: BoxType;
+    items: Array<{ catalog_id: Item["catalog_id"]; quantity: number }>;
+  }) => Promise<boolean>;
+  createTransport: (payload: {
+    unit_id: string;
+    moving_type: MovingType;
+    vehicle_number: string;
+    packing_ids: PackingUnit["packing_id"][];
+  }) => Promise<boolean>;
   receiveTransport: (
     movingId: MovingUnit["moving_id"],
     packingIds: PackingUnit["packing_id"][],
-  ) => void;
+  ) => Promise<boolean>;
   distributeUnit: (
     packingId: PackingUnit["packing_id"],
     itemIds: Item["catalog_id"][],
-  ) => void;
-  resetAll: () => void;
+  ) => Promise<boolean>;
+  resetAll: () => Promise<void>;
+};
+
+const emptyState: RelocationData = {
+  groups: [],
+  locations: [],
+  rooms: [],
+  units: [],
+  transports: [],
+  itemCatalogue: [],
 };
 
 const RelocationContext = createContext<RelocationContextValue | null>(null);
 
-const cloneSeedState = (): RelocationState => buildSeedState();
+function getStoredUserId() {
+  return localStorage.getItem(USER_STORAGE_KEY);
+}
 
-const readInitialState = (): RelocationState => {
-  if (typeof localStorage === "undefined") {
-    return cloneSeedState();
-  }
+function normalizeState(state: RelocationData): RelocationData {
+  return {
+    ...state,
+    transports: state.transports.map((transport) => ({
+      ...transport,
+      moving_date: new Date(transport.moving_date),
+    })),
+  };
+}
 
-  const raw = localStorage.getItem(STORAGE_KEY);
-
-  if (!raw) {
-    return cloneSeedState();
-  }
-
+async function readError(response: Response) {
   try {
-    const parsed = JSON.parse(raw) as RelocationState;
-
-    return {
-      ...parsed,
-      transports: parsed.transports.map((transport) => ({
-        ...transport,
-        moving_date: new Date(transport.moving_date),
-      })),
-    };
+    const body = (await response.json()) as { error?: string };
+    return body.error ?? "אירעה שגיאה.";
   } catch {
-    return cloneSeedState();
+    return "אירעה שגיאה.";
   }
-};
-
-const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
+}
 
 export function RelocationProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<RelocationState>(readInitialState);
+  const [userId, setUserIdState] = useState<string | null>(getStoredUserId);
+  const [state, setState] = useState<RelocationData>(emptyState);
+  const [users, setUsers] = useState<AuthenticatedUser[]>([]);
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const api = useCallback(
+    (path: string, init: RequestInit = {}) =>
+      fetch(path, {
+        ...init,
+        headers: {
+          "content-type": "application/json",
+          ...(userId ? { "x-user-id": userId } : {}),
+          ...init.headers,
+        },
+      }),
+    [userId],
+  );
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (!userId) {
+        setCurrentUser(null);
+        setUsers([]);
+        setState(emptyState);
+        return;
+      }
+
+      const [meResponse, stateResponse] = await Promise.all([
+        api("/api/me"),
+        api("/api/state"),
+      ]);
+
+      if (!meResponse.ok) {
+        throw new Error(await readError(meResponse));
+      }
+
+      if (!stateResponse.ok) {
+        throw new Error(await readError(stateResponse));
+      }
+
+      const me = (await meResponse.json()) as {
+        user: AuthenticatedUser;
+        users: AuthenticatedUser[];
+      };
+      const scopedState = (await stateResponse.json()) as RelocationData;
+
+      setCurrentUser(me.user);
+      setUsers(me.users);
+      setState(normalizeState(scopedState));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "אירעה שגיאה.");
+    } finally {
+      setLoading(false);
+    }
+  }, [api]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    if (userId) {
+      localStorage.setItem(USER_STORAGE_KEY, userId);
+    } else {
+      localStorage.removeItem(USER_STORAGE_KEY);
+    }
+
+    void reload();
+  }, [reload, userId]);
+
+  const setUserId = useCallback((nextUserId: string) => {
+    setUserIdState(nextUserId);
+  }, []);
+
+  const login = useCallback(async (personalNumber: string) => {
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ personal_number: personalNumber }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readError(response));
+      }
+
+      const body = (await response.json()) as { user: AuthenticatedUser };
+
+      localStorage.setItem(USER_STORAGE_KEY, body.user.user_id);
+      setUserIdState(body.user.user_id);
+      return true;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "אירעה שגיאה.");
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  }, []);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem(USER_STORAGE_KEY);
+    setUserIdState(null);
+    setCurrentUser(null);
+    setUsers([]);
+    setState(emptyState);
+  }, []);
+
+  const postAndReload = useCallback(
+    async (path: string, payload: unknown) => {
+      if (submitting) {
+        return false;
+      }
+
+      setSubmitting(true);
+      setError(null);
+
+      try {
+        const response = await api(path, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(await readError(response));
+        }
+
+        await reload();
+        return true;
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "אירעה שגיאה.");
+        return false;
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [api, reload, submitting],
+  );
 
   const createPacking = useCallback(
-    (
-      roomId: Room["room_id"],
-      boxType: BoxType,
-      itemIds: Item["catalog_id"][],
-    ) => {
-      setState((current) => {
-        const room = current.rooms.find((candidate) => candidate.room_id === roomId);
-
-        if (!room) {
-          return current;
-        }
-
-        const selectedItems = room.items
-          .filter((item) => itemIds.includes(item.catalog_id))
-          .map((item) => ({ ...item, item_status: ItemStatus.PACKED }));
-
-        if (selectedItems.length === 0) {
-          return current;
-        }
-
-        const packedItemIds = new Set(selectedItems.map((item) => item.catalog_id));
-        const isRoomClosed = room.items.every((item) => packedItemIds.has(item.catalog_id));
-
-        return {
-          ...current,
-          rooms: current.rooms.map((candidate) =>
-            candidate.room_id === roomId
-              ? {
-                  ...candidate,
-                  items: candidate.items.map((item) =>
-                    packedItemIds.has(item.catalog_id)
-                      ? { ...item, item_status: ItemStatus.PACKED }
-                      : item,
-                  ),
-                  room_status: isRoomClosed
-                    ? RoomStatus.CLOSED_ROOM
-                    : RoomStatus.PACKING_PROCESS,
-                }
-              : candidate,
-          ),
-          units: [
-            ...current.units,
-            {
-              packing_id: createId("pack"),
-              box_type: boxType,
-              packing_status: PackingUnitStatus.PACKING_CLOSED,
-              items: selectedItems,
-            },
-          ],
-        };
-      });
-    },
-    [],
+    (payload: Parameters<RelocationContextValue["createPacking"]>[0]) =>
+      postAndReload("/api/packing", payload),
+    [postAndReload],
   );
 
   const createTransport = useCallback(
-    (movingType: MovingType, packingIds: PackingUnit["packing_id"][]) => {
-      setState((current) => ({
-        ...current,
-        units: current.units.map((unit) =>
-          packingIds.includes(unit.packing_id)
-            ? { ...unit, packing_status: PackingUnitStatus.PACKING_ON_WAY }
-            : unit,
-        ),
-        transports: [
-          ...current.transports,
-          {
-            moving_id: createId("move"),
-            moving_type: movingType,
-            moving_status: MovingUnitStatus.ON_WAY,
-            moving_date: new Date(),
-          },
-        ],
-      }));
-    },
-    [],
+    (payload: Parameters<RelocationContextValue["createTransport"]>[0]) =>
+      postAndReload("/api/transports", payload),
+    [postAndReload],
   );
 
   const receiveTransport = useCallback(
-    (
-      movingId: MovingUnit["moving_id"],
-      packingIds: PackingUnit["packing_id"][],
-    ) => {
-      setState((current) => ({
-        ...current,
-        units: current.units.map((unit) =>
-          packingIds.includes(unit.packing_id)
-            ? {
-                ...unit,
-                packing_status: PackingUnitStatus.PACKING_RECEIVED,
-                items: unit.items.map((item) => ({
-                  ...item,
-                  item_status: ItemStatus.RECEIVED,
-                })),
-              }
-            : unit,
-        ),
-        transports: current.transports.map((transport) =>
-          transport.moving_id === movingId
-            ? {
-                ...transport,
-                moving_status: MovingUnitStatus.UNLOADED_AT_DESTINATION,
-              }
-            : transport,
-        ),
-      }));
-    },
-    [],
+    (moving_id: MovingUnit["moving_id"], packing_ids: PackingUnit["packing_id"][]) =>
+      postAndReload("/api/receiving", { moving_id, packing_ids }),
+    [postAndReload],
   );
 
   const distributeUnit = useCallback(
-    (
-      packingId: PackingUnit["packing_id"],
-      itemIds: Item["catalog_id"][],
-    ) => {
-      setState((current) => ({
-        ...current,
-        units: current.units.map((unit) =>
-          unit.packing_id === packingId
-            ? {
-                ...unit,
-                items: unit.items.map((item) =>
-                  itemIds.includes(item.catalog_id)
-                    ? { ...item, item_status: ItemStatus.DISTRIBUTED }
-                    : item,
-                ),
-              }
-            : unit,
-        ),
-      }));
-    },
-    [],
+    (packing_id: PackingUnit["packing_id"], item_ids: Item["catalog_id"][]) =>
+      postAndReload("/api/distribution", { packing_id, item_ids }),
+    [postAndReload],
   );
 
-  const resetAll = useCallback(() => {
-    setState(cloneSeedState());
-  }, []);
+  const resetAll = useCallback(async () => {
+    await postAndReload("/api/reset", {});
+  }, [postAndReload]);
 
   const value = useMemo(
     () => ({
       ...state,
+      currentUser,
+      users,
+      loading,
+      error,
+      submitting,
+      login,
+      logout,
+      setUserId,
+      reload,
       createPacking,
       createTransport,
       receiveTransport,
       distributeUnit,
       resetAll,
     }),
-    [createPacking, createTransport, distributeUnit, receiveTransport, resetAll, state],
+    [
+      createPacking,
+      createTransport,
+      currentUser,
+      distributeUnit,
+      error,
+      loading,
+      login,
+      logout,
+      receiveTransport,
+      reload,
+      resetAll,
+      setUserId,
+      state,
+      submitting,
+      users,
+    ],
   );
 
   return (
@@ -260,4 +315,3 @@ export function useRelocation() {
 
   return context;
 }
-

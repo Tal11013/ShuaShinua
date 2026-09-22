@@ -4,8 +4,8 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { DashboardRoute } from "./routes/DashboardRoute";
 import { DistributionRoute } from "./routes/DistributionRoute";
+import { ManagementReportRoute } from "./routes/ManagementReportRoute";
 import { PackingRoute } from "./routes/PackingRoute";
 import { ProcessesRoute } from "./routes/ProcessesRoute";
 import { ReceivingRoute } from "./routes/ReceivingRoute";
@@ -18,7 +18,7 @@ const rootRoute = createRootRoute({
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: DashboardRoute,
+  component: ProcessesRoute,
 });
 
 const processesRoute = createRoute({
@@ -51,6 +51,12 @@ const distributionRoute = createRoute({
   component: DistributionRoute,
 });
 
+const managementRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/management",
+  component: ManagementReportRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   dashboardRoute,
   processesRoute,
@@ -58,6 +64,7 @@ const routeTree = rootRoute.addChildren([
   transportRoute,
   receivingRoute,
   distributionRoute,
+  managementRoute,
 ]);
 
 export const router = createRouter({ routeTree });
@@ -67,4 +74,3 @@ declare module "@tanstack/react-router" {
     router: typeof router;
   }
 }
-

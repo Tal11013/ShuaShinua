@@ -22,5 +22,8 @@ export interface PackingUnit {
   packing_id: UUID;
   box_type: BoxType;
   packing_status: PackingUnitStatus;
+  source_room_id?: UUID;
+  destination_room_id?: UUID;
+  transport_id?: UUID;
   items: Item[];
 }

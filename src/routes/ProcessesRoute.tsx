@@ -63,7 +63,7 @@ function ProcessCard({
 }
 
 export function ProcessesRoute() {
-  const { transports, units } = useRelocation();
+  const { error, loading, transports, units } = useRelocation();
   const closedUnits = units.filter(
     (unit) => unit.packing_status === PackingUnitStatus.PACKING_CLOSED,
   ).length;
@@ -75,11 +75,9 @@ export function ProcessesRoute() {
   ).length;
 
   return (
-    <MobileShell
-      title="תהליכי פינוי"
-      subtitle="בחר פעולה אחת להמשך"
-      backTo="/"
-    >
+    <MobileShell title="שינוע ציוד" subtitle="בחר/י פעולה אחת להמשך">
+      {loading ? <p className="state-message">טוען נתונים...</p> : null}
+      {error ? <p className="state-message error">{error}</p> : null}
       <section className="process-list">
         <ProcessCard
           title="יצירת אריזה"

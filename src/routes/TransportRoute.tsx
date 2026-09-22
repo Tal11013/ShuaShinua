@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ClipboardList, Truck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MovingType, PackingUnitStatus } from "../../types";
 import {
   GhostButton,
@@ -8,7 +8,13 @@ import {
   PrimaryButton,
   RowButton,
 } from "../components/MobileShell";
+import {
+  OrgSelector,
+  getInitialOrgSelection,
+  type OrgSelection,
+} from "../components/OrgSelector";
 import { StatusChip } from "../components/StatusChip";
+import { VEHICLE_NUMBER_MESSAGE, validateVehicleNumber } from "../domain/validation";
 import { useRelocation } from "../state/relocation";
 
 const movingTypeLabels = {
@@ -18,14 +24,34 @@ const movingTypeLabels = {
 
 export function TransportRoute() {
   const navigate = useNavigate();
-  const { createTransport, units } = useRelocation();
+  const {
+    createTransport,
+    currentUser,
+    error,
+    loading,
+    submitting,
+    units,
+  } = useRelocation();
   const [step, setStep] = useState(0);
-  const [plate, setPlate] = useState("");
+  const [scope, setScope] = useState<OrgSelection>(() =>
+    getInitialOrgSelection(currentUser),
+  );
+  const [vehicleNumber, setVehicleNumber] = useState("");
   const [movingType, setMovingType] = useState(MovingType.TRACK);
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
+  const [validationMessage, setValidationMessage] = useState("");
   const sealedUnits = units.filter(
-    (unit) => unit.packing_status === PackingUnitStatus.PACKING_CLOSED,
+    (unit) =>
+      unit.packing_status === PackingUnitStatus.PACKING_CLOSED &&
+      unit.source_room_id === scope.room_id,
   );
+  const isVehicleValid = validateVehicleNumber(vehicleNumber);
+
+  useEffect(() => {
+    if (currentUser) {
+      setScope(getInitialOrgSelection(currentUser));
+    }
+  }, [currentUser]);
 
   const toggleUnit = (unitId: string) => {
     setSelectedUnitIds((current) =>
@@ -35,14 +61,28 @@ export function TransportRoute() {
     );
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 0) {
+      if (!isVehicleValid) {
+        setValidationMessage(VEHICLE_NUMBER_MESSAGE);
+        return;
+      }
+
+      setValidationMessage("");
       setStep(1);
       return;
     }
 
-    createTransport(movingType, selectedUnitIds);
-    navigate({ to: "/processes" });
+    const created = await createTransport({
+      unit_id: scope.unit_id,
+      moving_type: movingType,
+      vehicle_number: vehicleNumber,
+      packing_ids: selectedUnitIds,
+    });
+
+    if (created) {
+      navigate({ to: "/processes" });
+    }
   };
 
   return (
@@ -53,17 +93,30 @@ export function TransportRoute() {
       footer={
         <div className="footer-actions">
           {step > 0 ? (
-            <GhostButton onClick={() => setStep(0)}>חזרה</GhostButton>
+            <GhostButton disabled={submitting} onClick={() => setStep(0)}>
+              חזרה
+            </GhostButton>
           ) : null}
           <PrimaryButton
-            disabled={step === 0 ? !plate : selectedUnitIds.length === 0}
+            disabled={
+              submitting ||
+              (step === 0
+                ? !scope.room_id || !vehicleNumber || !isVehicleValid
+                : selectedUnitIds.length === 0)
+            }
             onClick={handleNext}
           >
-            {step === 0 ? "המשך" : "שיגור הובלה"}
+            {submitting ? "שומר..." : step === 0 ? "המשך" : "שיגור הובלה"}
           </PrimaryButton>
         </div>
       }
     >
+      {loading ? <p className="state-message">טוען נתונים...</p> : null}
+      {error ? <p className="state-message error">{error}</p> : null}
+      {validationMessage ? (
+        <p className="state-message error">{validationMessage}</p>
+      ) : null}
+
       <div className="wizard">
         <div className="stepper" aria-label="התקדמות">
           {[0, 1].map((index) => (
@@ -78,15 +131,35 @@ export function TransportRoute() {
           <section className="card-soft flow-card">
             <div className="flow-title">
               <Truck aria-hidden="true" size={20} />
-              <h2>פרטי רכב</h2>
+              <h2>פרטי הובלה</h2>
             </div>
+            <OrgSelector
+              title="תחום פעולה"
+              value={scope}
+              onChange={(nextScope) => {
+                setScope(nextScope);
+                setSelectedUnitIds([]);
+              }}
+              disabled={submitting}
+              roomLabel="חדר מקור"
+            />
             <div className="field-grid">
               <label>
                 מספר רכב
                 <input
-                  value={plate}
-                  onChange={(event) => setPlate(event.target.value)}
-                  placeholder="לדוגמה 123-45-678"
+                  inputMode="numeric"
+                  value={vehicleNumber}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+
+                    setVehicleNumber(nextValue);
+                    setValidationMessage(
+                      nextValue && !validateVehicleNumber(nextValue)
+                        ? VEHICLE_NUMBER_MESSAGE
+                        : "",
+                    );
+                  }}
+                  placeholder="12345678"
                 />
               </label>
             </div>
@@ -113,7 +186,7 @@ export function TransportRoute() {
             </div>
             <div className="option-group">
               {sealedUnits.length === 0 ? (
-                <p className="empty-state">אין אריזות סגורות לטעינה.</p>
+                <p className="empty-state">אין אריזות סגורות בתחום שנבחר.</p>
               ) : null}
               {sealedUnits.map((unit) => (
                 <label className="check-row" key={unit.packing_id}>

@@ -17,6 +17,7 @@ export interface Location {
 
 export interface IdfGroup {
   id: UUID;
+  unit_id: UUID;
   unit: string;
   branch: string;
   section: string;
