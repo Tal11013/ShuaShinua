@@ -1,21 +1,14 @@
-import type { UUID } from "./common.js";
-
+// Stored in moving_south_operation.user_roles; users without a row are workers.
 export enum UserRole {
   WORKER = "WORKER",
   UNIT_MANAGER = "UNIT_MANAGER",
   GLOBAL_MANAGER = "GLOBAL_MANAGER",
 }
 
-export interface UserScope {
-  unit_id?: UUID;
-  branch?: string;
-  section?: string;
-}
-
+// A public.users row plus its role and the units (group codes) it manages.
 export interface AuthenticatedUser {
-  user_id: UUID;
-  personal_number: string;
+  user_id: string; // users.identity_num
   name: string;
   role: UserRole;
-  scope: UserScope;
+  managed_unit_ids: string[];
 }

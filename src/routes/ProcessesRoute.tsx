@@ -7,8 +7,12 @@ import {
   Truck,
   type LucideIcon,
 } from "lucide-react";
-import { MovingUnitStatus, PackingUnitStatus } from "../../types";
 import { MobileShell } from "../components/MobileShell";
+import {
+  getDistributableUnits,
+  getReceivableTransports,
+  getTransportableUnits,
+} from "../domain/flows";
 import { useRelocation } from "../state/relocation";
 
 function ProcessCard({
@@ -63,16 +67,10 @@ function ProcessCard({
 }
 
 export function ProcessesRoute() {
-  const { error, loading, transports, units } = useRelocation();
-  const closedUnits = units.filter(
-    (unit) => unit.packing_status === PackingUnitStatus.PACKING_CLOSED,
-  ).length;
-  const activeTransports = transports.filter(
-    (transport) => transport.moving_status === MovingUnitStatus.ON_WAY,
-  ).length;
-  const receivedUnits = units.filter(
-    (unit) => unit.packing_status === PackingUnitStatus.PACKING_RECEIVED,
-  ).length;
+  const { error, loading, rooms, transports, units } = useRelocation();
+  const closedUnits = getTransportableUnits(units, rooms).length;
+  const activeTransports = getReceivableTransports(transports, units, rooms).length;
+  const receivedUnits = getDistributableUnits(units, rooms).length;
 
   return (
     <MobileShell title="שינוע ציוד" subtitle="בחר/י פעולה אחת להמשך">

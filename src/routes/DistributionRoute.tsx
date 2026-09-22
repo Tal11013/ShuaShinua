@@ -1,14 +1,20 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ClipboardCheck, Send } from "lucide-react";
 import { useState } from "react";
-import { PackingUnitStatus } from "../../types";
+import { ItemStatus } from "../../types";
 import {
   GhostButton,
   MobileShell,
   PrimaryButton,
   RowButton,
 } from "../components/MobileShell";
-import { getLocationLabel, getRoomOrgLabel } from "../domain/display";
+import {
+  boxTypeLabels,
+  getPackingLabel,
+  getRoomLabel,
+  getRoomOrgLabel,
+} from "../domain/display";
+import { getDistributableUnits } from "../domain/flows";
 import { useRelocation } from "../state/relocation";
 
 export function DistributionRoute() {
@@ -24,11 +30,9 @@ export function DistributionRoute() {
     units,
   } = useRelocation();
   const [step, setStep] = useState(0);
-  const [unitId, setUnitId] = useState("");
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const receivedUnits = units.filter(
-    (unit) => unit.packing_status === PackingUnitStatus.PACKING_RECEIVED,
-  );
+  const [unitId, setUnitId] = useState<number | null>(null);
+  const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+  const receivedUnits = getDistributableUnits(units, rooms);
   const selectedUnit = units.find((unit) => unit.packing_id === unitId);
   const sourceRoom = rooms.find(
     (room) => room.room_id === selectedUnit?.source_room_id,
@@ -37,17 +41,21 @@ export function DistributionRoute() {
     (room) => room.room_id === selectedUnit?.destination_room_id,
   );
 
-  const toggleItem = (catalogId: string) => {
+  const toggleItem = (itemId: number) => {
     setSelectedItemIds((current) =>
-      current.includes(catalogId)
-        ? current.filter((candidate) => candidate !== catalogId)
-        : [...current, catalogId],
+      current.includes(itemId)
+        ? current.filter((candidate) => candidate !== itemId)
+        : [...current, itemId],
     );
   };
 
   const handleNext = async () => {
     if (step === 0) {
       setStep(1);
+      return;
+    }
+
+    if (unitId === null) {
       return;
     }
 
@@ -73,7 +81,7 @@ export function DistributionRoute() {
           <PrimaryButton
             disabled={
               submitting ||
-              (step === 0 ? !unitId : selectedItemIds.length === 0)
+              (step === 0 ? unitId === null : selectedItemIds.length === 0)
             }
             onClick={handleNext}
           >
@@ -115,13 +123,13 @@ export function DistributionRoute() {
                   }}
                 >
                   <span>
-                    <strong>{unit.packing_id}</strong>
+                    <strong>{getPackingLabel(unit)}</strong>
                     <small>
-                      {unit.box_type} · {unit.items.length} פריטים
+                      {boxTypeLabels[unit.box_type]} · {unit.items.length} פריטים
                     </small>
                     <small>
                       חדר יעד:{" "}
-                      {getLocationLabel(
+                      {getRoomLabel(
                         locations,
                         rooms.find(
                           (room) => room.room_id === unit.destination_room_id,
@@ -144,28 +152,32 @@ export function DistributionRoute() {
             <div className="route-context card-soft">
               <div>
                 <span>חדר מקור</span>
-                <strong>{getLocationLabel(locations, sourceRoom)}</strong>
+                <strong>{getRoomLabel(locations, sourceRoom)}</strong>
                 <small>{getRoomOrgLabel(groups, sourceRoom)}</small>
               </div>
               <div>
                 <span>חדר יעד במיקום החדש</span>
-                <strong>{getLocationLabel(locations, destinationRoom)}</strong>
+                <strong>{getRoomLabel(locations, destinationRoom)}</strong>
                 <small>{getRoomOrgLabel(groups, destinationRoom)}</small>
               </div>
             </div>
             <div className="option-group">
               {selectedUnit?.items.map((item) => (
-                <label className="check-row" key={item.catalog_id}>
+                <label className="check-row" key={item.item_id}>
                   <input
                     type="checkbox"
-                    checked={selectedItemIds.includes(item.catalog_id)}
-                    onChange={() => toggleItem(item.catalog_id)}
+                    disabled={item.item_status !== ItemStatus.RECEIVED}
+                    checked={
+                      item.item_status === ItemStatus.DISTRIBUTED ||
+                      selectedItemIds.includes(item.item_id)
+                    }
+                    onChange={() => toggleItem(item.item_id)}
                   />
                   <span>
                     <strong>{item.description}</strong>
                     <code>
-                      {item.catalog_id}
-                      {item.quantity ? ` · ${item.quantity}` : ""}
+                      {item.catalog_id} · כמות {item.quantity}
+                      {item.item_status === ItemStatus.DISTRIBUTED ? " · פוזר" : ""}
                     </code>
                   </span>
                 </label>
