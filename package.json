@@ -22,9 +22,12 @@
   "homepage": "https://github.com/Tal11013/ShuaShinua#readme",
   "description": "",
   "dependencies": {
+    "@tanstack/react-router": "^1.170.38",
     "express": "^5.1.0",
+    "lucide-react": "^1.47.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
@@ -34,7 +37,7 @@
     "@vitejs/plugin-react": "^5.0.3",
     "concurrently": "^9.2.1",
     "tsx": "^4.20.5",
-    "vite": "^7.1.7",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite": "^7.1.7"
   }
 }
