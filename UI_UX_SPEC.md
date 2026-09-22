@@ -134,7 +134,7 @@ The `card-soft` utility class is the standard surface for all cards and list ite
 **Flow:**
 
 1. **Vehicle details** — Enter license plate, select vehicle type (`משאית` / `אחר`).
-2. **Load units** — Multi-select list of packing units with status `"אריזה נסגרה"`. Each row shows unit ID, type, source room, and destination. Confirm dispatches the transport (`"יחידת הובלה בדרך"`) and triggers an SMS notification.
+2. **Load units** — Searchable multi-select list of packing units with status `"אריזה נסגרה"`. Users can search by packing ID or tap the camera button to photograph a printed packing number; OCR fills the search and selects the matching available unit. Each row shows unit ID, type, source room, and destination. Confirm dispatches the transport (`"יחידת הובלה בדרך"`) and triggers an SMS notification.
 
 ---
 
