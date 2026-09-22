@@ -1,25 +1,27 @@
 import { LogIn } from "lucide-react";
 import { useState } from "react";
 import { PrimaryButton } from "../components/MobileShell";
+import {
+  IDENTITY_NUMBER_MESSAGE,
+  IDENTITY_NUMBER_REGEX,
+} from "../domain/validation";
 import { useRelocation } from "../state/relocation";
-
-const PERSONAL_NUMBER_MESSAGE = "מספר אישי חייב להכיל 7 ספרות.";
 
 export function LoginRoute() {
   const { error, login, submitting } = useRelocation();
-  const [personalNumber, setPersonalNumber] = useState("");
+  const [identityNum, setIdentityNum] = useState("");
   const [validationMessage, setValidationMessage] = useState("");
 
-  const isValid = /^\d{7}$/.test(personalNumber);
+  const isValid = IDENTITY_NUMBER_REGEX.test(identityNum);
 
   const submit = async () => {
     if (!isValid) {
-      setValidationMessage(PERSONAL_NUMBER_MESSAGE);
+      setValidationMessage(IDENTITY_NUMBER_MESSAGE);
       return;
     }
 
     setValidationMessage("");
-    await login(personalNumber);
+    await login(identityNum);
   };
 
   return (
@@ -31,27 +33,32 @@ export function LoginRoute() {
         <div>
           <p className="eyebrow">כניסה למערכת</p>
           <h1>פינוי ציוד</h1>
-          <p>הזדהות לפי מספר אישי</p>
+          <p>הזדהות לפי מספר זהות</p>
         </div>
         <label className="select-label">
-          מספר אישי
+          מספר זהות
           <input
             inputMode="numeric"
-            maxLength={7}
-            value={personalNumber}
+            maxLength={9}
+            value={identityNum}
             onChange={(event) => {
               const nextValue = event.target.value;
 
               if (/^\d*$/.test(nextValue)) {
-                setPersonalNumber(nextValue);
+                setIdentityNum(nextValue);
                 setValidationMessage(
-                  nextValue.length > 0 && !/^\d{7}$/.test(nextValue)
-                    ? PERSONAL_NUMBER_MESSAGE
+                  nextValue.length > 0 && !IDENTITY_NUMBER_REGEX.test(nextValue)
+                    ? IDENTITY_NUMBER_MESSAGE
                     : "",
                 );
               }
             }}
-            placeholder="1111111"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                void submit();
+              }
+            }}
+            placeholder="300000022"
           />
         </label>
         {validationMessage ? (
@@ -62,12 +69,11 @@ export function LoginRoute() {
           {submitting ? "מתחבר..." : "כניסה"}
         </PrimaryButton>
         <div className="login-hints" aria-label="משתמשים לדוגמה">
-          <span>1111111 · עובד</span>
-          <span>2222222 · מנהל יחידה</span>
-          <span>3333333 · מנהל גלובלי</span>
+          <span>300000022 · עובד</span>
+          <span>300000011 · מנהל יחידה</span>
+          <span>300000033 · מנהל גלובלי</span>
         </div>
       </section>
     </main>
   );
 }
-

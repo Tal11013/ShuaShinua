@@ -1,15 +1,43 @@
-import type { IdfGroup, Location, Room } from "../../types";
+import {
+  BoxType,
+  MovingType,
+  type IdfGroup,
+  type Location,
+  type PackingUnit,
+  type Room,
+} from "../../types";
 
-export function getLocationLabel(locations: Location[], room: Room | undefined) {
-  const location = locations.find(
-    (candidate) => candidate.location_id === room?.location,
-  );
+export const boxTypeLabels: Record<BoxType, string> = {
+  [BoxType.PERSONAL_BOX]: "קרטון אישי",
+  [BoxType.PROF_BOX]: "קרטון מקצועי",
+  [BoxType.DOLEV]: "דולב",
+  [BoxType.SUITCASE]: "מזוודה",
+};
 
-  if (!room || !location) {
+export const movingTypeLabels: Record<MovingType, string> = {
+  [MovingType.TRACK]: "משאית",
+  [MovingType.CAR]: "אחר",
+};
+
+export function getPackingLabel(unit: PackingUnit) {
+  return `אריזה #${unit.packing_id}`;
+}
+
+export function getGroupLabel(group: IdfGroup) {
+  return group.contact_name ? `${group.id} · ${group.contact_name}` : `קבוצה ${group.id}`;
+}
+
+export function getRoomLabel(locations: Location[], room: Room | undefined) {
+  if (!room) {
     return "לא ידוע";
   }
 
-  return `בניין ${location.building}, קומה ${location.floor}, חדר ${location.room_number}`;
+  const location = locations.find(
+    (candidate) => candidate.location_id === room.location_id,
+  );
+  const name = room.description ?? `חדר ${room.room_id}`;
+
+  return location ? `${name} · ${location.description}` : name;
 }
 
 export function getRoomOrgLabel(groups: IdfGroup[], room: Room | undefined) {
@@ -19,6 +47,5 @@ export function getRoomOrgLabel(groups: IdfGroup[], room: Room | undefined) {
     return "לא ידוע";
   }
 
-  return `${group.unit} · ${group.branch} · ${group.section}`;
+  return `יחידה ${group.unit_id} · ${getGroupLabel(group)}`;
 }
-

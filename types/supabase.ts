@@ -193,6 +193,100 @@ export type Database = {
           },
         ];
       };
+      packing_items: {
+        Row: {
+          id: number;
+          packing_unit_id: number;
+          sub_category_id: number;
+          quantity: number;
+          status: string;
+        };
+        Insert: {
+          id?: number;
+          packing_unit_id: number;
+          sub_category_id: number;
+          quantity: number;
+          status?: string;
+        };
+        Update: {
+          id?: number;
+          packing_unit_id?: number;
+          sub_category_id?: number;
+          quantity?: number;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "packing_items_packing_unit_id_fkey";
+            columns: ["packing_unit_id"];
+            isOneToOne: false;
+            referencedRelation: "packing_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "packing_items_sub_category_id_fkey";
+            columns: ["sub_category_id"];
+            isOneToOne: false;
+            referencedRelation: "sub_categories";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      packing_units: {
+        Row: {
+          id: number;
+          box_type: string;
+          status: string;
+          source_room_id: number;
+          destination_room_id: number;
+          transport_id: number | null;
+          created_by: string;
+          created_on: string;
+        };
+        Insert: {
+          id?: number;
+          box_type: string;
+          status?: string;
+          source_room_id: number;
+          destination_room_id: number;
+          transport_id?: number | null;
+          created_by: string;
+          created_on?: string;
+        };
+        Update: {
+          id?: number;
+          box_type?: string;
+          status?: string;
+          source_room_id?: number;
+          destination_room_id?: number;
+          transport_id?: number | null;
+          created_by?: string;
+          created_on?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "packing_units_destination_room_id_fkey";
+            columns: ["destination_room_id"];
+            isOneToOne: false;
+            referencedRelation: "rooms";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "packing_units_source_room_id_fkey";
+            columns: ["source_room_id"];
+            isOneToOne: false;
+            referencedRelation: "rooms";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "packing_units_transport_id_fkey";
+            columns: ["transport_id"];
+            isOneToOne: false;
+            referencedRelation: "transports";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       rooms: {
         Row: {
           id: number;
@@ -204,6 +298,7 @@ export type Database = {
           start_mapping_time: string | null;
           end_mapping_time: string | null;
           is_available: boolean;
+          move_status: string;
         };
         Insert: {
           id?: number;
@@ -215,6 +310,7 @@ export type Database = {
           start_mapping_time?: string | null;
           end_mapping_time?: string | null;
           is_available?: boolean;
+          move_status?: string;
         };
         Update: {
           id?: number;
@@ -226,6 +322,7 @@ export type Database = {
           start_mapping_time?: string | null;
           end_mapping_time?: string | null;
           is_available?: boolean;
+          move_status?: string;
         };
         Relationships: [
           {
@@ -273,6 +370,36 @@ export type Database = {
           },
         ];
       };
+      transports: {
+        Row: {
+          id: number;
+          moving_type: string;
+          status: string;
+          moving_date: string;
+          vehicle_number: string | null;
+          vehicle_details: string | null;
+          created_by: string;
+        };
+        Insert: {
+          id?: number;
+          moving_type: string;
+          status?: string;
+          moving_date?: string;
+          vehicle_number?: string | null;
+          vehicle_details?: string | null;
+          created_by: string;
+        };
+        Update: {
+          id?: number;
+          moving_type?: string;
+          status?: string;
+          moving_date?: string;
+          vehicle_number?: string | null;
+          vehicle_details?: string | null;
+          created_by?: string;
+        };
+        Relationships: [];
+      };
       user_group: {
         Row: {
           identity_num: string;
@@ -305,9 +432,59 @@ export type Database = {
           },
         ];
       };
+      user_roles: {
+        Row: {
+          identity_num: string;
+          role: string;
+          assigned_on: string;
+          assigned_by: string | null;
+        };
+        Insert: {
+          identity_num: string;
+          role: string;
+          assigned_on?: string;
+          assigned_by?: string | null;
+        };
+        Update: {
+          identity_num?: string;
+          role?: string;
+          assigned_on?: string;
+          assigned_by?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      create_packing: {
+        Args: {
+          p_created_by: string;
+          p_box_type: string;
+          p_source_room_id: number;
+          p_destination_room_id: number;
+          p_items: Json;
+        };
+        Returns: number;
+      };
+      create_transport: {
+        Args: {
+          p_created_by: string;
+          p_moving_type: string;
+          p_vehicle_number: string | null;
+          p_vehicle_details: string | null;
+          p_packing_ids: number[];
+        };
+        Returns: number;
+      };
+      distribute_items: {
+        Args: { p_packing_id: number; p_item_ids: number[] };
+        Returns: undefined;
+      };
+      receive_transport: {
+        Args: { p_transport_id: number; p_packing_ids: number[] };
+        Returns: undefined;
+      };
+    };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };

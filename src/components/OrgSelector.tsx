@@ -1,29 +1,29 @@
-import { UserRole, type Room } from "../../types";
+import type { IdfGroup } from "../../types";
+import { getGroupLabel, getRoomLabel } from "../domain/display";
 import { isSelectableRoom } from "../domain/validation";
 import { useRelocation } from "../state/relocation";
 
 export type OrgSelection = {
   unit_id: string;
-  branch: string;
-  section: string;
-  room_id: string;
+  group_id: number | null;
+  room_id: number | null;
 };
 
 export const emptyOrgSelection: OrgSelection = {
   unit_id: "",
-  branch: "",
-  section: "",
-  room_id: "",
+  group_id: null,
+  room_id: null,
 };
 
-export function getInitialOrgSelection(
-  currentUser: ReturnType<typeof useRelocation>["currentUser"],
-) {
+// Preselects the unit and group when the user can only see one of each.
+export function getInitialOrgSelection(groups: IdfGroup[]): OrgSelection {
+  const unitIds = new Set(groups.map((group) => group.unit_id));
+  const onlyGroup = groups.length === 1 ? groups[0]! : null;
+
   return {
-    unit_id: currentUser?.scope.unit_id ?? "",
-    branch: currentUser?.scope.branch ?? "",
-    section: currentUser?.scope.section ?? "",
-    room_id: "",
+    unit_id: unitIds.size === 1 ? [...unitIds][0]! : "",
+    group_id: onlyGroup?.id ?? null,
+    room_id: null,
   };
 }
 
@@ -32,58 +32,23 @@ export function OrgSelector({
   value,
   onChange,
   disabled,
+  unitLocked,
   roomLabel = "חדר",
 }: {
   title: string;
   value: OrgSelection;
   onChange: (value: OrgSelection) => void;
   disabled?: boolean;
+  // Destination rooms must be in the source room's unit.
+  unitLocked?: boolean;
   roomLabel?: string;
 }) {
-  const { currentUser, groups, locations, rooms } = useRelocation();
-  const userRole = currentUser?.role;
-  const fixedUnit = userRole !== UserRole.GLOBAL_MANAGER && Boolean(currentUser?.scope.unit_id);
-  const fixedBranch = Boolean(currentUser?.scope.branch);
-  const fixedSection = Boolean(currentUser?.scope.section);
-  const units = Array.from(
-    new Map(groups.map((group) => [group.unit_id, group.unit])).entries(),
-  ).map(([unit_id, unit]) => ({ unit_id, unit }));
-  const branches = Array.from(
-    new Set(
-      groups
-        .filter((group) => group.unit_id === value.unit_id)
-        .map((group) => group.branch),
-    ),
+  const { groups, locations, rooms } = useRelocation();
+  const unitIds = Array.from(new Set(groups.map((group) => group.unit_id)));
+  const unitGroups = groups.filter((group) => group.unit_id === value.unit_id);
+  const selectableRooms = rooms.filter(
+    (room) => room.group_id === value.group_id && isSelectableRoom(room),
   );
-  const sections = Array.from(
-    new Set(
-      groups
-        .filter(
-          (group) =>
-            group.unit_id === value.unit_id && group.branch === value.branch,
-        )
-        .map((group) => group.section),
-    ),
-  );
-  const selectableRooms = rooms.filter((room) => {
-    const group = groups.find((candidate) => candidate.id === room.group_id);
-    return (
-      group?.unit_id === value.unit_id &&
-      group.branch === value.branch &&
-      group.section === value.section &&
-      isSelectableRoom(room)
-    );
-  });
-
-  const roomLabelFor = (room: Room) => {
-    const location = locations.find(
-      (candidate) => candidate.location_id === room.location,
-    );
-
-    return location
-      ? `בניין ${location.building}, קומה ${location.floor}, חדר ${location.room_number}`
-      : room.room_id;
-  };
 
   return (
     <section className="org-selector" aria-label={title}>
@@ -91,64 +56,41 @@ export function OrgSelector({
       <label>
         יחידה
         <select
-          disabled={disabled || fixedUnit}
+          disabled={disabled || unitLocked || unitIds.length <= 1}
           value={value.unit_id}
           onChange={(event) =>
             onChange({
               unit_id: event.target.value,
-              branch: "",
-              section: "",
-              room_id: "",
+              group_id: null,
+              room_id: null,
             })
           }
         >
           <option value="">בחר/י יחידה</option>
-          {units.map((unit) => (
-            <option key={unit.unit_id} value={unit.unit_id}>
-              {unit.unit}
+          {unitIds.map((unitId) => (
+            <option key={unitId} value={unitId}>
+              {unitId}
             </option>
           ))}
         </select>
       </label>
       <label>
-        ענף
+        קבוצה
         <select
-          disabled={disabled || fixedBranch || !value.unit_id}
-          value={value.branch}
+          disabled={disabled || !value.unit_id}
+          value={value.group_id ?? ""}
           onChange={(event) =>
             onChange({
               ...value,
-              branch: event.target.value,
-              section: "",
-              room_id: "",
+              group_id: event.target.value ? Number(event.target.value) : null,
+              room_id: null,
             })
           }
         >
-          <option value="">בחר/י ענף</option>
-          {branches.map((branch) => (
-            <option key={branch} value={branch}>
-              {branch}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        מדור
-        <select
-          disabled={disabled || fixedSection || !value.branch}
-          value={value.section}
-          onChange={(event) =>
-            onChange({
-              ...value,
-              section: event.target.value,
-              room_id: "",
-            })
-          }
-        >
-          <option value="">בחר/י מדור</option>
-          {sections.map((section) => (
-            <option key={section} value={section}>
-              {section}
+          <option value="">בחר/י קבוצה</option>
+          {unitGroups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {getGroupLabel(group)}
             </option>
           ))}
         </select>
@@ -156,24 +98,26 @@ export function OrgSelector({
       <label>
         {roomLabel}
         <select
-          disabled={disabled || !value.section}
-          value={value.room_id}
+          disabled={disabled || value.group_id === null}
+          value={value.room_id ?? ""}
           onChange={(event) =>
             onChange({
               ...value,
-              room_id: event.target.value,
+              room_id: event.target.value ? Number(event.target.value) : null,
             })
           }
         >
           <option value="">בחר/י חדר</option>
           {selectableRooms.map((room) => (
             <option key={room.room_id} value={room.room_id}>
-              {roomLabelFor(room)}
+              {getRoomLabel(locations, room)}
             </option>
           ))}
         </select>
       </label>
+      {value.group_id !== null && selectableRooms.length === 0 ? (
+        <p className="empty-state">אין בקבוצה זו חדרים זמינים (חדר חייב מיקום משויך).</p>
+      ) : null}
     </section>
   );
 }
-

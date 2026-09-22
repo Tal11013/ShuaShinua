@@ -9,7 +9,8 @@ import {
 } from "recharts";
 import { RoomStatus, UserRole } from "../../types";
 import { MobileShell } from "../components/MobileShell";
-import type { BranchReportRow } from "../domain/report";
+import { getGroupLabel } from "../domain/display";
+import type { GroupReportRow } from "../domain/report";
 import { useRelocation } from "../state/relocation";
 
 const statusLabel = {
@@ -61,25 +62,21 @@ async function readError(response: Response) {
 }
 
 export function ManagementReportRoute() {
-  const { currentUser, groups, rooms } = useRelocation();
-  const [rows, setRows] = useState<BranchReportRow[]>([]);
+  const { api, currentUser, groups, rooms } = useRelocation();
+  const [rows, setRows] = useState<GroupReportRow[]>([]);
   const [unitId, setUnitId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const units = useMemo(
-    () =>
-      Array.from(new Map(groups.map((group) => [group.unit_id, group.unit])).entries()).map(
-        ([unit_id, unit]) => ({ unit_id, unit }),
-      ),
+  const unitIds = useMemo(
+    () => Array.from(new Set(groups.map((group) => group.unit_id))),
     [groups],
   );
   const canAccess =
     currentUser?.role === UserRole.UNIT_MANAGER ||
     currentUser?.role === UserRole.GLOBAL_MANAGER;
-  const visibleGroups =
-    currentUser?.role === UserRole.GLOBAL_MANAGER && unitId
-      ? groups.filter((group) => group.unit_id === unitId)
-      : groups;
+  const visibleGroups = unitId
+    ? groups.filter((group) => group.unit_id === unitId)
+    : groups;
   const visibleGroupIds = new Set(visibleGroups.map((group) => group.id));
   const visibleRooms = rooms.filter((room) => visibleGroupIds.has(room.group_id));
   const closedCount = visibleRooms.filter(
@@ -97,7 +94,7 @@ export function ManagementReportRoute() {
     const groupRooms = rooms.filter((room) => room.group_id === group.id);
 
     return {
-      branch: group.branch,
+      label: getGroupLabel(group),
       closed: groupRooms.filter(
         (room) => room.room_status === RoomStatus.CLOSED_ROOM,
       ).length,
@@ -126,15 +123,14 @@ export function ManagementReportRoute() {
     const controller = new AbortController();
     const params = new URLSearchParams();
 
-    if (currentUser.role === UserRole.GLOBAL_MANAGER && unitId) {
+    if (unitId) {
       params.set("unit_id", unitId);
     }
 
     setLoading(true);
     setError(null);
 
-    fetch(`/api/management-report${params.size ? `?${params}` : ""}`, {
-      headers: { "x-user-id": currentUser.user_id },
+    api(`/api/management-report${params.size ? `?${params}` : ""}`, {
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -142,7 +138,7 @@ export function ManagementReportRoute() {
           throw new Error(await readError(response));
         }
 
-        return response.json() as Promise<{ rows: BranchReportRow[] }>;
+        return response.json() as Promise<{ rows: GroupReportRow[] }>;
       })
       .then((body) => setRows(body.rows))
       .catch((caught) => {
@@ -157,19 +153,19 @@ export function ManagementReportRoute() {
       });
 
     return () => controller.abort();
-  }, [canAccess, currentUser, unitId]);
+  }, [api, canAccess, currentUser, unitId]);
 
   return (
     <MobileShell title="דו״ח מנהלים">
-      {currentUser?.role === UserRole.GLOBAL_MANAGER ? (
+      {unitIds.length > 1 ? (
         <section className="card-soft flow-card">
           <label className="select-label">
             יחידה
             <select value={unitId} onChange={(event) => setUnitId(event.target.value)}>
               <option value="">כל היחידות</option>
-              {units.map((unit) => (
-                <option key={unit.unit_id} value={unit.unit_id}>
-                  {unit.unit}
+              {unitIds.map((candidate) => (
+                <option key={candidate} value={candidate}>
+                  {candidate}
                 </option>
               ))}
             </select>
@@ -197,7 +193,7 @@ export function ManagementReportRoute() {
 
       <section className="chart-card card-soft">
         <div className="section-head">
-          <h2>פילוח לפי ענף</h2>
+          <h2>פילוח לפי קבוצה</h2>
         </div>
         <div className="legend" aria-label="מקרא סטטוסים">
           <span className="legend-item success">עברו</span>
@@ -214,7 +210,7 @@ export function ManagementReportRoute() {
               <XAxis type="number" allowDecimals={false} hide />
               <YAxis
                 type="category"
-                dataKey="branch"
+                dataKey="label"
                 width={88}
                 tickLine={false}
                 axisLine={false}
@@ -233,12 +229,12 @@ export function ManagementReportRoute() {
         <p className="state-message">אין נתונים להצגה.</p>
       ) : null}
 
-      <section className="report-list" aria-label="סטטוס מעבר לפי ענף">
+      <section className="report-list" aria-label="סטטוס מעבר לפי קבוצה">
         {rows.map((row) => (
-          <article className="report-row card-soft" key={`${row.unit_id}-${row.branch}`}>
+          <article className="report-row card-soft" key={row.group_id}>
             <div>
-              <h2>{row.branch}</h2>
-              <p>{row.unit}</p>
+              <h2>{row.label}</h2>
+              <p>יחידה {row.unit_id}</p>
             </div>
             <span className={`status-chip ${statusClass[row.status]}`}>
               {statusLabel[row.status]}

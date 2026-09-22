@@ -10,6 +10,7 @@ import {
 import {
   type AuthenticatedUser,
   type BoxType,
+  type CatalogueItem,
   type IdfGroup,
   type Item,
   type Location,
@@ -18,26 +19,33 @@ import {
   type PackingUnit,
   type Room,
 } from "../../types";
-import type { RelocationData } from "../domain/seed";
 
 const USER_STORAGE_KEY = "relocation-user-id";
 
+// The shape of GET /api/state.
+export type RelocationData = {
+  groups: IdfGroup[];
+  locations: Location[];
+  rooms: Room[];
+  units: PackingUnit[];
+  transports: MovingUnit[];
+  itemCatalogue: CatalogueItem[];
+};
+
 type RelocationContextValue = RelocationData & {
   currentUser: AuthenticatedUser | null;
-  users: AuthenticatedUser[];
   loading: boolean;
   error: string | null;
   submitting: boolean;
-  login: (personalNumber: string) => Promise<boolean>;
+  login: (identityNum: string) => Promise<boolean>;
   logout: () => void;
-  setUserId: (userId: string) => void;
   reload: () => Promise<void>;
+  api: (path: string, init?: RequestInit) => Promise<Response>;
   createPacking: (payload: {
-    unit_id: string;
     source_room_id: Room["room_id"];
     destination_room_id: Room["room_id"];
     box_type: BoxType;
-    items: Array<{ catalog_id: Item["catalog_id"]; quantity: number }>;
+    items: Array<{ catalog_id: CatalogueItem["catalog_id"]; quantity: number }>;
   }) => Promise<boolean>;
   createTransport: (payload: {
     moving_type: MovingType;
@@ -51,9 +59,8 @@ type RelocationContextValue = RelocationData & {
   ) => Promise<boolean>;
   distributeUnit: (
     packingId: PackingUnit["packing_id"],
-    itemIds: Item["catalog_id"][],
+    itemIds: Item["item_id"][],
   ) => Promise<boolean>;
-  resetAll: () => Promise<void>;
 };
 
 const emptyState: RelocationData = {
@@ -68,7 +75,23 @@ const emptyState: RelocationData = {
 const RelocationContext = createContext<RelocationContextValue | null>(null);
 
 function getStoredUserId() {
-  return localStorage.getItem(USER_STORAGE_KEY);
+  try {
+    return localStorage.getItem(USER_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeUserId(userId: string | null) {
+  try {
+    if (userId) {
+      localStorage.setItem(USER_STORAGE_KEY, userId);
+    } else {
+      localStorage.removeItem(USER_STORAGE_KEY);
+    }
+  } catch {
+    // Storage unavailable: the session just won't survive a reload.
+  }
 }
 
 function normalizeState(state: RelocationData): RelocationData {
@@ -81,23 +104,38 @@ function normalizeState(state: RelocationData): RelocationData {
   };
 }
 
+class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 async function readError(response: Response) {
   try {
     const body = (await response.json()) as { error?: string };
-    return body.error ?? "אירעה שגיאה.";
+    return new ApiError(response.status, body.error ?? "אירעה שגיאה.");
   } catch {
-    return "אירעה שגיאה.";
+    return new ApiError(response.status, "אירעה שגיאה.");
   }
 }
 
 export function RelocationProvider({ children }: { children: ReactNode }) {
-  const [userId, setUserIdState] = useState<string | null>(getStoredUserId);
+  const [userId, setUserId] = useState<string | null>(getStoredUserId);
   const [state, setState] = useState<RelocationData>(emptyState);
-  const [users, setUsers] = useState<AuthenticatedUser[]>([]);
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const logout = useCallback(() => {
+    storeUserId(null);
+    setUserId(null);
+    setCurrentUser(null);
+    setState(emptyState);
+  }, []);
 
   const api = useCallback(
     (path: string, init: RequestInit = {}) =>
@@ -112,6 +150,17 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
     [userId],
   );
 
+  // Surfaces an API failure; an unknown/removed user is logged out.
+  const handleError = useCallback(
+    (caught: unknown) => {
+      if (caught instanceof ApiError && caught.status === 401) {
+        logout();
+      }
+      setError(caught instanceof Error ? caught.message : "אירעה שגיאה.");
+    },
+    [logout],
+  );
+
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -119,7 +168,6 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
     try {
       if (!userId) {
         setCurrentUser(null);
-        setUsers([]);
         setState(emptyState);
         return;
       }
@@ -130,44 +178,30 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
       ]);
 
       if (!meResponse.ok) {
-        throw new Error(await readError(meResponse));
+        throw await readError(meResponse);
       }
 
       if (!stateResponse.ok) {
-        throw new Error(await readError(stateResponse));
+        throw await readError(stateResponse);
       }
 
-      const me = (await meResponse.json()) as {
-        user: AuthenticatedUser;
-        users: AuthenticatedUser[];
-      };
+      const me = (await meResponse.json()) as { user: AuthenticatedUser };
       const scopedState = (await stateResponse.json()) as RelocationData;
 
       setCurrentUser(me.user);
-      setUsers(me.users);
       setState(normalizeState(scopedState));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "אירעה שגיאה.");
+      handleError(caught);
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, handleError, userId]);
 
   useEffect(() => {
-    if (userId) {
-      localStorage.setItem(USER_STORAGE_KEY, userId);
-    } else {
-      localStorage.removeItem(USER_STORAGE_KEY);
-    }
-
     void reload();
-  }, [reload, userId]);
+  }, [reload]);
 
-  const setUserId = useCallback((nextUserId: string) => {
-    setUserIdState(nextUserId);
-  }, []);
-
-  const login = useCallback(async (personalNumber: string) => {
+  const login = useCallback(async (identityNum: string) => {
     setSubmitting(true);
     setError(null);
 
@@ -175,17 +209,17 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
       const response = await fetch("/api/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ personal_number: personalNumber }),
+        body: JSON.stringify({ identity_num: identityNum }),
       });
 
       if (!response.ok) {
-        throw new Error(await readError(response));
+        throw await readError(response);
       }
 
       const body = (await response.json()) as { user: AuthenticatedUser };
 
-      localStorage.setItem(USER_STORAGE_KEY, body.user.user_id);
-      setUserIdState(body.user.user_id);
+      storeUserId(body.user.user_id);
+      setUserId(body.user.user_id);
       return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "אירעה שגיאה.");
@@ -193,14 +227,6 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
     } finally {
       setSubmitting(false);
     }
-  }, []);
-
-  const logout = useCallback(() => {
-    localStorage.removeItem(USER_STORAGE_KEY);
-    setUserIdState(null);
-    setCurrentUser(null);
-    setUsers([]);
-    setState(emptyState);
   }, []);
 
   const postAndReload = useCallback(
@@ -219,19 +245,19 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
         });
 
         if (!response.ok) {
-          throw new Error(await readError(response));
+          throw await readError(response);
         }
 
         await reload();
         return true;
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "אירעה שגיאה.");
+        handleError(caught);
         return false;
       } finally {
         setSubmitting(false);
       }
     },
-    [api, reload, submitting],
+    [api, handleError, reload, submitting],
   );
 
   const createPacking = useCallback(
@@ -253,34 +279,29 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
   );
 
   const distributeUnit = useCallback(
-    (packing_id: PackingUnit["packing_id"], item_ids: Item["catalog_id"][]) =>
+    (packing_id: PackingUnit["packing_id"], item_ids: Item["item_id"][]) =>
       postAndReload("/api/distribution", { packing_id, item_ids }),
     [postAndReload],
   );
-
-  const resetAll = useCallback(async () => {
-    await postAndReload("/api/reset", {});
-  }, [postAndReload]);
 
   const value = useMemo(
     () => ({
       ...state,
       currentUser,
-      users,
       loading,
       error,
       submitting,
       login,
       logout,
-      setUserId,
       reload,
+      api,
       createPacking,
       createTransport,
       receiveTransport,
       distributeUnit,
-      resetAll,
     }),
     [
+      api,
       createPacking,
       createTransport,
       currentUser,
@@ -291,11 +312,8 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
       logout,
       receiveTransport,
       reload,
-      resetAll,
-      setUserId,
       state,
       submitting,
-      users,
     ],
   );
 

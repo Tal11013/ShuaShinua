@@ -1,13 +1,14 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ClipboardCheck, Inbox } from "lucide-react";
 import { useState } from "react";
-import { MovingUnitStatus, PackingUnitStatus } from "../../types";
 import {
   GhostButton,
   MobileShell,
   PrimaryButton,
   RowButton,
 } from "../components/MobileShell";
+import { getPackingLabel, movingTypeLabels } from "../domain/display";
+import { getReceivableTransports, getReceivableUnits } from "../domain/flows";
 import { useRelocation } from "../state/relocation";
 
 export function ReceivingRoute() {
@@ -16,36 +17,27 @@ export function ReceivingRoute() {
     error,
     loading,
     receiveTransport,
+    rooms,
     submitting,
     transports,
     units,
   } = useRelocation();
   const [step, setStep] = useState(0);
-  const [transportId, setTransportId] = useState("");
-  const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
-  const activeTransports = transports.filter(
-    (transport) =>
-      transport.moving_status === MovingUnitStatus.ON_WAY &&
-      units.some(
-        (unit) =>
-          unit.transport_id === transport.moving_id &&
-          unit.packing_status === PackingUnitStatus.PACKING_ON_WAY,
-      ),
-  );
+  const [transportId, setTransportId] = useState<number | null>(null);
+  const [selectedUnitIds, setSelectedUnitIds] = useState<number[]>([]);
+  const activeTransports = getReceivableTransports(transports, units, rooms);
   const selectedTransport = transports.find(
     (transport) => transport.moving_id === transportId,
   );
-  const inTransitUnits = units.filter(
-    (unit) =>
-      unit.packing_status === PackingUnitStatus.PACKING_ON_WAY &&
-      unit.transport_id === transportId,
+  const inTransitUnits = getReceivableUnits(units, rooms).filter(
+    (unit) => unit.transport_id === transportId,
   );
   const getVehicleDescription = (transport: typeof transports[number]) =>
     transport.vehicle_details
       ? `פירוט: ${transport.vehicle_details}`
       : `מספר רכב: ${transport.vehicle_number ?? "לא קיים במערכת"}`;
 
-  const toggleUnit = (unitId: string) => {
+  const toggleUnit = (unitId: number) => {
     setSelectedUnitIds((current) =>
       current.includes(unitId)
         ? current.filter((candidate) => candidate !== unitId)
@@ -56,6 +48,10 @@ export function ReceivingRoute() {
   const handleNext = async () => {
     if (step === 0) {
       setStep(1);
+      return;
+    }
+
+    if (transportId === null) {
       return;
     }
 
@@ -81,7 +77,7 @@ export function ReceivingRoute() {
           <PrimaryButton
             disabled={
               submitting ||
-              (step === 0 ? !transportId : selectedUnitIds.length === 0)
+              (step === 0 ? transportId === null : selectedUnitIds.length === 0)
             }
             onClick={handleNext}
           >
@@ -123,9 +119,12 @@ export function ReceivingRoute() {
                   }}
                 >
                   <span>
-                    <strong>{transport.moving_type}</strong>
+                    <strong>{movingTypeLabels[transport.moving_type]}</strong>
                     <small>{getVehicleDescription(transport)}</small>
-                    <code>{transport.moving_id}</code>
+                    <code>
+                      #{transport.moving_id} ·{" "}
+                      {transport.moving_date.toLocaleString("he-IL")}
+                    </code>
                   </span>
                 </RowButton>
               ))}
@@ -141,7 +140,7 @@ export function ReceivingRoute() {
             </div>
             {selectedTransport ? (
               <p className="context-note">
-                {selectedTransport.moving_type}
+                {movingTypeLabels[selectedTransport.moving_type]}
                 <br />
                 {getVehicleDescription(selectedTransport)}
               </p>
@@ -158,7 +157,7 @@ export function ReceivingRoute() {
                     onChange={() => toggleUnit(unit.packing_id)}
                   />
                   <span>
-                    <strong>{unit.packing_id}</strong>
+                    <strong>{getPackingLabel(unit)}</strong>
                     <small>{unit.items.length} פריטים</small>
                   </span>
                 </label>

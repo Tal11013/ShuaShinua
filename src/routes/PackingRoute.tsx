@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Archive, ClipboardCheck, MapPin, PackageCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { BoxType, type Room } from "../../types";
+import { BoxType } from "../../types";
 import {
   GhostButton,
   MobileShell,
@@ -13,15 +13,9 @@ import {
   getInitialOrgSelection,
   type OrgSelection,
 } from "../components/OrgSelector";
+import { boxTypeLabels, getRoomLabel } from "../domain/display";
 import { searchItemCatalogue } from "../domain/validation";
 import { useRelocation } from "../state/relocation";
-
-const boxLabels = {
-  [BoxType.PERSONAL_BOX]: "קרטון אישי",
-  [BoxType.PROF_BOX]: "קרטון מקצועי",
-  [BoxType.DOLEV]: "דולב",
-  [BoxType.SUITCASE]: "מזוודה",
-};
 
 function sanitizeQuantity(value: string) {
   if (!/^\d*$/.test(value)) {
@@ -31,22 +25,12 @@ function sanitizeQuantity(value: string) {
   return value === "" ? 0 : Number(value);
 }
 
-function formatRoom(room: Room | undefined, locations: ReturnType<typeof useRelocation>["locations"]) {
-  const location = locations.find((candidate) => candidate.location_id === room?.location);
-
-  if (!room || !location) {
-    return "לא נבחר";
-  }
-
-  return `בניין ${location.building}, קומה ${location.floor}, חדר ${location.room_number}`;
-}
-
 export function PackingRoute() {
   const navigate = useNavigate();
   const {
     createPacking,
-    currentUser,
     error,
+    groups,
     itemCatalogue,
     loading,
     locations,
@@ -55,14 +39,14 @@ export function PackingRoute() {
   } = useRelocation();
   const [step, setStep] = useState(0);
   const [source, setSource] = useState<OrgSelection>(() =>
-    getInitialOrgSelection(currentUser),
+    getInitialOrgSelection(groups),
   );
   const [destination, setDestination] = useState<OrgSelection>(() =>
-    getInitialOrgSelection(currentUser),
+    getInitialOrgSelection(groups),
   );
   const [boxType, setBoxType] = useState<BoxType | null>(null);
   const [search, setSearch] = useState("");
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [validationMessage, setValidationMessage] = useState("");
 
   const sourceRoom = rooms.find((room) => room.room_id === source.room_id);
@@ -75,31 +59,25 @@ export function PackingRoute() {
   );
   const selectedItems = Object.entries(quantities)
     .filter(([, quantity]) => quantity > 0)
-    .map(([catalog_id, quantity]) => ({ catalog_id, quantity }));
+    .map(([catalog_id, quantity]) => ({ catalog_id: Number(catalog_id), quantity }));
 
+  // State arrives after the first render; preselect once it does.
   useEffect(() => {
-    if (currentUser) {
-      const initialSelection = getInitialOrgSelection(currentUser);
-      setSource(initialSelection);
-      setDestination(initialSelection);
-    }
-  }, [currentUser]);
+    const initialSelection = getInitialOrgSelection(groups);
+    setSource((current) => (current.unit_id ? current : initialSelection));
+    setDestination((current) => (current.unit_id ? current : initialSelection));
+  }, [groups]);
 
   const canContinue =
     step === 0
-      ? Boolean(source.unit_id && source.branch && source.section && source.room_id)
+      ? source.room_id !== null
       : step === 1
         ? Boolean(boxType)
         : step === 2
           ? selectedItems.length > 0
-          : Boolean(
-              destination.unit_id &&
-                destination.branch &&
-                destination.section &&
-                destination.room_id,
-            );
+          : destination.room_id !== null;
 
-  const updateQuantity = (catalogId: string, value: string) => {
+  const updateQuantity = (catalogId: number, value: string) => {
     const quantity = sanitizeQuantity(value);
 
     if (quantity === null) {
@@ -126,17 +104,27 @@ export function PackingRoute() {
 
     if (step < 3) {
       setValidationMessage("");
+
+      // The destination room must be in the source room's unit.
+      if (step === 2 && destination.unit_id !== source.unit_id) {
+        setDestination({ unit_id: source.unit_id, group_id: null, room_id: null });
+      }
+
       setStep((current) => current + 1);
       return;
     }
 
-    if (!boxType || selectedItems.length === 0 || !destination.room_id) {
+    if (
+      !boxType ||
+      selectedItems.length === 0 ||
+      source.room_id === null ||
+      destination.room_id === null
+    ) {
       setValidationMessage("יש להשלים מקור, פריטים וחדר יעד במיקום החדש.");
       return;
     }
 
     const created = await createPacking({
-      unit_id: source.unit_id,
       source_room_id: source.room_id,
       destination_room_id: destination.room_id,
       box_type: boxType,
@@ -220,7 +208,7 @@ export function PackingRoute() {
                   selected={boxType === candidate}
                   onClick={() => setBoxType(candidate)}
                 >
-                  <span>{boxLabels[candidate]}</span>
+                  <span>{boxTypeLabels[candidate]}</span>
                 </RowButton>
               ))}
             </div>
@@ -249,7 +237,9 @@ export function PackingRoute() {
                 <label className="catalogue-row" key={item.catalog_id}>
                   <span>
                     <strong>{item.description}</strong>
-                    <code>{item.catalog_id}</code>
+                    <code>
+                      {item.catalog_id} · {item.category}
+                    </code>
                   </span>
                   <input
                     inputMode="numeric"
@@ -278,20 +268,21 @@ export function PackingRoute() {
               value={destination}
               onChange={setDestination}
               disabled={submitting}
+              unitLocked
               roomLabel="חדר יעד במיקום החדש"
             />
             <div className="route-context card-soft">
               <div>
                 <span>חדר מקור</span>
-                <strong>{formatRoom(sourceRoom, locations)}</strong>
+                <strong>{getRoomLabel(locations, sourceRoom)}</strong>
               </div>
               <div>
                 <span>חדר יעד במיקום החדש</span>
-                <strong>{formatRoom(destinationRoom, locations)}</strong>
+                <strong>{getRoomLabel(locations, destinationRoom)}</strong>
               </div>
               <div>
                 <span>סוג אריזה</span>
-                <strong>{boxType ? boxLabels[boxType] : "לא נבחר"}</strong>
+                <strong>{boxType ? boxTypeLabels[boxType] : "לא נבחר"}</strong>
               </div>
               <div>
                 <span>פריטים שנבחרו</span>

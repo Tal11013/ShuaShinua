@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ClipboardList, Truck } from "lucide-react";
 import { useState } from "react";
-import { MovingType, PackingUnitStatus } from "../../types";
+import { MovingType } from "../../types";
 import {
   GhostButton,
   MobileShell,
@@ -9,35 +9,36 @@ import {
   RowButton,
 } from "../components/MobileShell";
 import {
+  boxTypeLabels,
+  getPackingLabel,
+  getRoomLabel,
+  movingTypeLabels,
+} from "../domain/display";
+import { getTransportableUnits } from "../domain/flows";
+import {
   VEHICLE_NUMBER_MESSAGE,
   validateVehicleDetails,
   validateVehicleNumber,
 } from "../domain/validation";
 import { useRelocation } from "../state/relocation";
 
-const movingTypeLabels = {
-  [MovingType.TRACK]: "משאית",
-  [MovingType.CAR]: "אחר",
-};
-
 export function TransportRoute() {
   const navigate = useNavigate();
-  const { createTransport, error, loading, submitting, units } = useRelocation();
+  const { createTransport, error, loading, locations, rooms, submitting, units } =
+    useRelocation();
   const [step, setStep] = useState(0);
   const [vehicleNumber, setVehicleNumber] = useState("");
   const [vehicleDetails, setVehicleDetails] = useState("");
   const [movingType, setMovingType] = useState(MovingType.TRACK);
-  const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
+  const [selectedUnitIds, setSelectedUnitIds] = useState<number[]>([]);
   const [validationMessage, setValidationMessage] = useState("");
-  const sealedUnits = units.filter(
-    (unit) => unit.packing_status === PackingUnitStatus.PACKING_CLOSED,
-  );
+  const sealedUnits = getTransportableUnits(units, rooms);
   const isOtherVehicle = movingType === MovingType.CAR;
   const isVehicleValid = isOtherVehicle
     ? validateVehicleDetails(vehicleDetails)
     : validateVehicleNumber(vehicleNumber);
 
-  const toggleUnit = (unitId: string) => {
+  const toggleUnit = (unitId: number) => {
     setSelectedUnitIds((current) =>
       current.includes(unitId)
         ? current.filter((candidate) => candidate !== unitId)
@@ -190,8 +191,13 @@ export function TransportRoute() {
                     onChange={() => toggleUnit(unit.packing_id)}
                   />
                   <span>
-                    <strong>{unit.packing_id}</strong>
-                    <small>{unit.box_type}</small>
+                    <strong>{getPackingLabel(unit)}</strong>
+                    <small>
+                      {boxTypeLabels[unit.box_type]} · {unit.items.length} פריטים
+                    </small>
+                    <small>
+                      מ: {getRoomLabel(locations, rooms.find((room) => room.room_id === unit.source_room_id))}
+                    </small>
                   </span>
                 </label>
               ))}
