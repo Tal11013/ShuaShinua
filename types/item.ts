@@ -1,9 +1,11 @@
+import type { UUID } from "./common.js";
+
 export enum ItemStatus {
   NOT_PACKED = "NOT_PACKED",
   PACKED = "PACKED",
   RECEIVED = "RECEIVED",
   MISSING = "MISSING",
-  DISTRIBUTED = "DISTRIBUTED"
+  DISTRIBUTED = "DISTRIBUTED",
 }
 
 export interface Item {
@@ -13,4 +15,3 @@ export interface Item {
   item_status: ItemStatus;
   is_balmas: boolean;
 }
-

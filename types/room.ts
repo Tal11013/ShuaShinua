@@ -1,5 +1,5 @@
-import type { UUID } from "./common";
-import type { Item } from "./item";
+import type { UUID } from "./common.js";
+import type { Item } from "./item.js";
 
 export enum RoomStatus {
   WAITING_FOR_STATUS = "WAITING_FOR_STATUS",
@@ -38,4 +38,3 @@ export interface RoomMapping {
   old_room_id: Room["room_id"];
   new_room_id: Room["room_id"];
 }
-

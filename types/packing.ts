@@ -1,5 +1,5 @@
-import type { UUID } from "./common";
-import type { Item } from "./item";
+import type { UUID } from "./common.js";
+import type { Item } from "./item.js";
 
 
 export enum BoxType {
@@ -24,4 +24,3 @@ export interface PackingUnit {
   packing_status: PackingUnitStatus;
   items: Item[];
 }
-

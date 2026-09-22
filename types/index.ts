@@ -1,7 +1,6 @@
-export * from "./common";
-export * from "./item";
-export * from "./room";
-export * from "./packing";
-export * from "./moving";
-export * from "./action";
-
+export * from "./common.js";
+export * from "./item.js";
+export * from "./room.js";
+export * from "./packing.js";
+export * from "./moving.js";
+export * from "./action.js";
