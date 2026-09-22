@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ClipboardCheck, Send } from "lucide-react";
 import { useState } from "react";
-import { PackingUnitStatus } from "../../types";
+import { PackingUnitStatus, UserRole } from "../../types";
 import {
   GhostButton,
   MobileShell,
@@ -15,6 +15,7 @@ export function DistributionRoute() {
   const navigate = useNavigate();
   const {
     distributeUnit,
+    currentUser,
     error,
     groups,
     loading,
@@ -36,6 +37,7 @@ export function DistributionRoute() {
   const destinationRoom = rooms.find(
     (room) => room.room_id === selectedUnit?.destination_room_id,
   );
+  const canViewUnit = currentUser?.role === UserRole.GLOBAL_MANAGER;
 
   const toggleItem = (catalogId: string) => {
     setSelectedItemIds((current) =>
@@ -145,12 +147,12 @@ export function DistributionRoute() {
               <div>
                 <span>חדר מקור</span>
                 <strong>{getLocationLabel(locations, sourceRoom)}</strong>
-                <small>{getRoomOrgLabel(groups, sourceRoom)}</small>
+                <small>{getRoomOrgLabel(groups, sourceRoom, { showUnit: canViewUnit })}</small>
               </div>
               <div>
                 <span>חדר יעד במיקום החדש</span>
                 <strong>{getLocationLabel(locations, destinationRoom)}</strong>
-                <small>{getRoomOrgLabel(groups, destinationRoom)}</small>
+                <small>{getRoomOrgLabel(groups, destinationRoom, { showUnit: canViewUnit })}</small>
               </div>
             </div>
             <div className="option-group">

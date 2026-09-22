@@ -12,13 +12,18 @@ export function getLocationLabel(locations: Location[], room: Room | undefined) 
   return `בניין ${location.building}, קומה ${location.floor}, חדר ${location.room_number}`;
 }
 
-export function getRoomOrgLabel(groups: IdfGroup[], room: Room | undefined) {
+export function getRoomOrgLabel(
+  groups: IdfGroup[],
+  room: Room | undefined,
+  options: { showUnit?: boolean } = {},
+) {
   const group = groups.find((candidate) => candidate.id === room?.group_id);
 
   if (!room || !group) {
     return "לא ידוע";
   }
 
-  return `${group.unit} · ${group.branch} · ${group.section}`;
+  return options.showUnit === false
+    ? `${group.branch} · ${group.section}`
+    : `${group.unit} · ${group.branch} · ${group.section}`;
 }
-

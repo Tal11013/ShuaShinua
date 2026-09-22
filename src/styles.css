@@ -274,6 +274,7 @@ p {
 .chart-card {
   margin-top: 16px;
   padding: 16px;
+  overflow: hidden;
 }
 
 .section-head,
@@ -338,8 +339,29 @@ p {
 
 .chart-wrap {
   width: 100%;
-  min-height: 220px;
+  min-height: 240px;
   margin-top: 12px;
+}
+
+.chart-wrap .recharts-wrapper {
+  direction: ltr;
+}
+
+.chart-wrap .recharts-cartesian-axis-tick text {
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.chart-axis-label {
+  fill: var(--foreground);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.chart-wrap .recharts-bar-rectangle path {
+  filter: drop-shadow(0 3px 5px oklch(0.21 0.02 260 / 0.08));
 }
 
 .chart-tooltip {

@@ -42,6 +42,7 @@ export function OrgSelector({
 }) {
   const { currentUser, groups, locations, rooms } = useRelocation();
   const userRole = currentUser?.role;
+  const canViewUnit = userRole === UserRole.GLOBAL_MANAGER;
   const fixedUnit = userRole !== UserRole.GLOBAL_MANAGER && Boolean(currentUser?.scope.unit_id);
   const fixedBranch = Boolean(currentUser?.scope.branch);
   const fixedSection = Boolean(currentUser?.scope.section);
@@ -88,6 +89,7 @@ export function OrgSelector({
   return (
     <section className="org-selector" aria-label={title}>
       <h3>{title}</h3>
+      {canViewUnit ? (
       <label>
         יחידה
         <select
@@ -110,6 +112,7 @@ export function OrgSelector({
           ))}
         </select>
       </label>
+      ) : null}
       <label>
         ענף
         <select

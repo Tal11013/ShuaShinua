@@ -9,6 +9,7 @@ import {
   UserRole,
   type AuthenticatedUser,
   type Item,
+  type MovingUnit,
   type PackingUnit,
 } from "../types";
 import { buildBranchReport } from "../src/domain/report";
@@ -326,22 +327,23 @@ app.post("/api/transports", (request: ApiRequest, response) => {
   }
 
   const movingId = createId("move");
-  const transport = {
+  const packingUnitIds = selectedUnits.map((unit) => unit.packing_id);
+  const transport: MovingUnit = {
     moving_id: movingId,
     moving_type: selectedMovingType,
     moving_status: MovingUnitStatus.ON_WAY,
     moving_date: new Date(),
     ...(selectedMovingType === MovingType.CAR
       ? { vehicle_details: vehicle_details!.trim() }
-      : { vehicle_number }),
-    packing_unit_ids: selectedUnits.map((unit) => unit.packing_id),
+      : { vehicle_number: vehicle_number! }),
+    packing_unit_ids: packingUnitIds,
   };
 
   data = {
     ...data,
     transports: [...data.transports, transport],
     units: data.units.map((unit) =>
-      transport.packing_unit_ids.includes(unit.packing_id)
+      packingUnitIds.includes(unit.packing_id)
         ? {
             ...unit,
             transport_id: movingId,
