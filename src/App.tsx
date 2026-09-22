@@ -1,19 +1,10 @@
 import { useEffect, useState } from "react";
+import Chat from "./components/Chat";
 
 type HealthResponse = {
   status: string;
   service: string;
 };
-
-const models = [
-  "Room",
-  "Location",
-  "IdfGroup",
-  "Item",
-  "PackingUnit",
-  "MovingUnit",
-  "RoomMapping",
-];
 
 export function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -28,15 +19,14 @@ export function App() {
   return (
     <main className="app">
       <section className="hero">
-        <p className="eyebrow">React + TypeScript + Express</p>
+        <p className="eyebrow">React + TypeScript + Express + Python Agent</p>
         <h1>ShuaShinua</h1>
         <p className="summary">
-          A basic full-stack project is running locally. The React app is served
-          by Vite, and API requests go to Express.
+          A full-stack logistics management system powered by an LLM agent.
         </p>
       </section>
 
-      <section className="panel">
+      <section className="panel" style={{ marginBottom: "2rem" }}>
         <div>
           <h2>API Status</h2>
           <p className={health?.status === "ok" ? "status ok" : "status"}>
@@ -45,13 +35,9 @@ export function App() {
         </div>
       </section>
 
-      <section className="models" aria-label="Project models">
-        {models.map((model) => (
-          <article className="model" key={model}>
-            <h2>{model}</h2>
-            <p>TypeScript model available in the shared types folder.</p>
-          </article>
-        ))}
+      <section className="chat-section">
+        <h2 style={{ textAlign: "center", marginBottom: "1rem" }}>Logistics Agent</h2>
+        <Chat />
       </section>
     </main>
   );
