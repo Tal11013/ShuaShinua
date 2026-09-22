@@ -7,6 +7,15 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "server": "tsx watch server/index.ts",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "db:check": "tsx server/check-supabase.ts",
+    "db:gen-types": "node scripts/gen-types.mjs",
+    "db:gen-types:local": "node scripts/gen-types.mjs --local",
+    "db:reset": "supabase db reset",
+    "db:push": "supabase db push",
+    "db:migration:new": "supabase migration new",
     "test": "tsx tests/domain.test.ts"
   },
   "repository": {
@@ -22,6 +31,7 @@
   "homepage": "https://github.com/Tal11013/ShuaShinua#readme",
   "description": "",
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.0",
     "@tanstack/react-router": "^1.170.38",
     "express": "^5.1.0",
     "lucide-react": "^1.47.0",
@@ -36,6 +46,7 @@
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.3",
     "concurrently": "^9.2.1",
+    "supabase": "^2.117.0",
     "tsx": "^4.20.5",
     "typescript": "^7.0.2",
     "vite": "^7.1.7"

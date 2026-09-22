@@ -1,3 +1,17 @@
+import "./env.js";
+import { checkSupabaseConnection } from "./supabaseHealth.js";
+import { errorHandler } from "./http.js";
+import { usersRouter } from "./routes/users.js";
+import { groupsRouter } from "./routes/groups.js";
+import {
+  categoriesRouter,
+  groupCodesRouter,
+  itemTypesRouter,
+  locationsRouter,
+  mappingReportsRouter,
+  roomsRouter,
+  subCategoriesRouter,
+} from "./routes/operations.js";
 import express, { type Request, type Response } from "express";
 import {
   BoxType,
@@ -136,6 +150,21 @@ app.get("/api/health", (_request, response) => {
     service: "ShuaShinua API",
   });
 });
+
+app.get("/api/health/supabase", async (_request, response) => {
+  const health = await checkSupabaseConnection();
+  response.status(health.status === "ok" ? 200 : 503).json(health);
+});
+
+app.use("/api/users", usersRouter);
+app.use("/api/groups", groupsRouter);
+app.use("/api/group-codes", groupCodesRouter);
+app.use("/api/locations", locationsRouter);
+app.use("/api/rooms", roomsRouter);
+app.use("/api/mapping-reports", mappingReportsRouter);
+app.use("/api/item-types", itemTypesRouter);
+app.use("/api/categories", categoriesRouter);
+app.use("/api/sub-categories", subCategoriesRouter);
 
 app.get("/api/me", (request: ApiRequest, response) => {
   response.json({ user: requireUser(request), users: USERS });
@@ -333,7 +362,7 @@ app.post("/api/transports", (request: ApiRequest, response) => {
     moving_date: new Date(),
     ...(selectedMovingType === MovingType.CAR
       ? { vehicle_details: vehicle_details!.trim() }
-      : { vehicle_number }),
+      : { vehicle_number: vehicle_number! }),
     packing_unit_ids: selectedUnits.map((unit) => unit.packing_id),
   };
 
@@ -467,6 +496,12 @@ app.post("/api/reset", (_request, response) => {
   data = buildSeedState();
   response.json({ ok: true });
 });
+
+app.use("/api", (_request, response) => {
+  response.status(404).json({ error: "Not found" });
+});
+
+app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(`Express API running at http://localhost:${port}`);
