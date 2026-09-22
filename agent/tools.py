@@ -85,8 +85,69 @@ def list_missing_items() -> List[Dict[str, Any]]:
             "team": row["team_name"],
             "branch": row["branch_name"]
         })
-        
     return missing_items
+
+def query_items(team_name: str = None, room_number: int = None, status: str = None, limit: int = 50) -> List[Dict[str, Any]]:
+    """
+    Query items in the database with optional filters.
+    """
+    conn = _get_connection()
+    cursor = conn.cursor()
+    
+    query = '''
+        SELECT 
+            i.catalog_id,
+            i.description,
+            i.price,
+            i.item_status,
+            i.is_balmas,
+            l.building,
+            l.room_number,
+            g.tzevet as team_name,
+            g.anaf as branch_name
+        FROM items i
+        JOIN rooms r ON i.room_id = r.room_id
+        JOIN locations l ON r.location_id = l.location_id
+        JOIN idf_groups g ON r.group_id = g.id
+        WHERE 1=1
+    '''
+    
+    params = []
+    
+    if team_name:
+        query += " AND g.tzevet = ?"
+        params.append(team_name)
+    if room_number is not None:
+        query += " AND l.room_number = ?"
+        params.append(room_number)
+    if status:
+        query += " AND i.item_status = ?"
+        params.append(status)
+        
+    query += " LIMIT ?"
+    params.append(limit)
+    
+    cursor.execute(query, tuple(params))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    items = []
+    for row in rows:
+        items.append({
+            "catalog_id": row["catalog_id"],
+            "description": row["description"],
+            "price": row["price"],
+            "status": row["item_status"],
+            "is_balmas": bool(row["is_balmas"]),
+            "location": {
+                "building": row["building"],
+                "room_number": row["room_number"]
+            },
+            "team": row["team_name"],
+            "branch": row["branch_name"]
+        })
+        
+    return items
 
 def get_active_trucks() -> List[Dict[str, Any]]:
     """

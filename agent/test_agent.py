@@ -74,3 +74,16 @@ def test_expensive_items_query():
     
     tool_calls = [msg for msg in history if isinstance(msg, dict) and msg.get("role") == "tool" and msg.get("name") == "get_expensive_unpacked_items"]
     assert len(tool_calls) > 0, f"Agent did not call the expensive items tool. Answer: {answer}"
+
+def test_query_items():
+    """Test if the agent can list/query all items based on filters."""
+    prompt = "הראה לי את כל הציוד של מדור 1"
+    answer, history = run_conversation(prompt)
+    
+    # We expect it might use query_items or get_branch_packing_summary
+    # Let's prompt it specifically to list all items for a team
+    prompt2 = "פרט לי את רשימת כל הציוד (גם אלו שנארזו) של צוות 1."
+    answer2, history2 = run_conversation(prompt2)
+    
+    tool_calls = [msg for msg in history2 if isinstance(msg, dict) and msg.get("role") == "tool" and msg.get("name") == "query_items"]
+    assert len(tool_calls) > 0, f"Agent did not call the query_items tool. Answer: {answer2}"

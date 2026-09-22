@@ -146,6 +146,34 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
+            "name": "query_items",
+            "description": "Queries items from the database. Use this to see all equipment, with optional filters.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "team_name": {
+                        "type": "string",
+                        "description": "Filter by team name (e.g., 'צוות 1')"
+                    },
+                    "room_number": {
+                        "type": "integer",
+                        "description": "Filter by room number"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by item status (e.g., 'PACKED', 'MISSING', 'NOT_PACKED')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of items to return (default 50)"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_team_equipment_summary",
             "description": "Returns total items, packed items, and missing items for a specific team (צוות).",
             "parameters": {
@@ -208,6 +236,7 @@ AVAILABLE_FUNCTIONS = {
     "generate_truck_status_bar_chart": tools.generate_truck_status_bar_chart,
     "generate_generic_bar_chart": tools.generate_generic_bar_chart,
     "calculate": tools.calculate,
+    "query_items": tools.query_items,
     "get_team_equipment_summary": tools.get_team_equipment_summary,
     "get_room_details": tools.get_room_details,
     "get_expensive_unpacked_items": tools.get_expensive_unpacked_items
@@ -284,6 +313,13 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
                         )
                     elif function_name == "calculate":
                         function_response = function_to_call(expression=function_args.get("expression"))
+                    elif function_name == "query_items":
+                        function_response = function_to_call(
+                            team_name=function_args.get("team_name"),
+                            room_number=function_args.get("room_number"),
+                            status=function_args.get("status"),
+                            limit=function_args.get("limit", 50)
+                        )
                     elif function_name == "get_team_equipment_summary":
                         function_response = function_to_call(team_name=function_args.get("team_name"))
                     elif function_name == "get_room_details":
