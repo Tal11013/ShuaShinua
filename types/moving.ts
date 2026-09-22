@@ -19,5 +19,6 @@ export interface MovingUnit {
   moving_status: MovingUnitStatus;
   moving_date: Date;
   vehicle_number?: string;
+  vehicle_details?: string;
   packing_unit_ids?: UUID[];
 }

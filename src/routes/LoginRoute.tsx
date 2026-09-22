@@ -31,7 +31,7 @@ export function LoginRoute() {
         <div>
           <p className="eyebrow">כניסה למערכת</p>
           <h1>פינוי ציוד</h1>
-          <p>הזדהות לפי מספר אישי בן 7 ספרות.</p>
+          <p>הזדהות לפי מספר אישי</p>
         </div>
         <label className="select-label">
           מספר אישי

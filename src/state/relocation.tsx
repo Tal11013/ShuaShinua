@@ -40,9 +40,9 @@ type RelocationContextValue = RelocationData & {
     items: Array<{ catalog_id: Item["catalog_id"]; quantity: number }>;
   }) => Promise<boolean>;
   createTransport: (payload: {
-    unit_id: string;
     moving_type: MovingType;
-    vehicle_number: string;
+    vehicle_number?: string;
+    vehicle_details?: string;
     packing_ids: PackingUnit["packing_id"][];
   }) => Promise<boolean>;
   receiveTransport: (

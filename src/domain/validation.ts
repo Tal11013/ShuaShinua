@@ -21,6 +21,10 @@ export function validateVehicleNumber(vehicleNumber: string) {
   return VEHICLE_NUMBER_REGEX.test(vehicleNumber);
 }
 
+export function validateVehicleDetails(details: string) {
+  return details.trim().length > 0;
+}
+
 export function validateCatalogueQuantities(
   items: Array<{ catalog_id: string; quantity: unknown }>,
   catalogue: Item[],
