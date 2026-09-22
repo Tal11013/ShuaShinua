@@ -1,18 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ClipboardCheck, Send } from "lucide-react";
-import { useEffect, useState } from "react";
-import { PackingUnitStatus } from "../../types";
+import { useState } from "react";
+import { PackingUnitStatus, UserRole } from "../../types";
 import {
   GhostButton,
   MobileShell,
   PrimaryButton,
   RowButton,
 } from "../components/MobileShell";
-import {
-  OrgSelector,
-  getInitialOrgSelection,
-  type OrgSelection,
-} from "../components/OrgSelector";
 import { StatusChip } from "../components/StatusChip";
 import { getLocationLabel, getRoomOrgLabel } from "../domain/display";
 import { useRelocation } from "../state/relocation";
@@ -21,8 +16,8 @@ export function DistributionRoute() {
   const navigate = useNavigate();
   const {
     distributeUnit,
-    error,
     currentUser,
+    error,
     groups,
     loading,
     locations,
@@ -31,15 +26,10 @@ export function DistributionRoute() {
     units,
   } = useRelocation();
   const [step, setStep] = useState(0);
-  const [scope, setScope] = useState<OrgSelection>(() =>
-    getInitialOrgSelection(currentUser),
-  );
   const [unitId, setUnitId] = useState("");
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const receivedUnits = units.filter(
-    (unit) =>
-      unit.packing_status === PackingUnitStatus.PACKING_RECEIVED &&
-      unit.destination_room_id === scope.room_id,
+    (unit) => unit.packing_status === PackingUnitStatus.PACKING_RECEIVED,
   );
   const selectedUnit = units.find((unit) => unit.packing_id === unitId);
   const sourceRoom = rooms.find(
@@ -48,6 +38,7 @@ export function DistributionRoute() {
   const destinationRoom = rooms.find(
     (room) => room.room_id === selectedUnit?.destination_room_id,
   );
+  const canViewUnit = currentUser?.role === UserRole.GLOBAL_MANAGER;
 
   const toggleItem = (catalogId: string) => {
     setSelectedItemIds((current) =>
@@ -56,12 +47,6 @@ export function DistributionRoute() {
         : [...current, catalogId],
     );
   };
-
-  useEffect(() => {
-    if (currentUser) {
-      setScope(getInitialOrgSelection(currentUser));
-    }
-  }, [currentUser]);
 
   const handleNext = async () => {
     if (step === 0) {
@@ -91,7 +76,7 @@ export function DistributionRoute() {
           <PrimaryButton
             disabled={
               submitting ||
-              (step === 0 ? !scope.room_id || !unitId : selectedItemIds.length === 0)
+              (step === 0 ? !unitId : selectedItemIds.length === 0)
             }
             onClick={handleNext}
           >
@@ -119,17 +104,6 @@ export function DistributionRoute() {
               <Send aria-hidden="true" size={20} />
               <h2>בחירת אריזה</h2>
             </div>
-            <OrgSelector
-              title="תחום פעולה"
-              value={scope}
-              onChange={(nextScope) => {
-                setScope(nextScope);
-                setUnitId("");
-                setSelectedItemIds([]);
-              }}
-              disabled={submitting}
-              roomLabel="חדר יעד"
-            />
             <div className="option-group">
               {receivedUnits.length === 0 ? (
                 <p className="empty-state">אין אריזות שהתקבלו לפיזור.</p>
@@ -147,6 +121,15 @@ export function DistributionRoute() {
                     <strong>{unit.packing_id}</strong>
                     <small>
                       {unit.box_type} · {unit.items.length} פריטים
+                    </small>
+                    <small>
+                      חדר יעד:{" "}
+                      {getLocationLabel(
+                        locations,
+                        rooms.find(
+                          (room) => room.room_id === unit.destination_room_id,
+                        ),
+                      )}
                     </small>
                   </span>
                   <StatusChip status={unit.packing_status} />
@@ -166,12 +149,12 @@ export function DistributionRoute() {
               <div>
                 <span>חדר מקור</span>
                 <strong>{getLocationLabel(locations, sourceRoom)}</strong>
-                <small>{getRoomOrgLabel(groups, sourceRoom)}</small>
+                <small>{getRoomOrgLabel(groups, sourceRoom, { showUnit: canViewUnit })}</small>
               </div>
               <div>
                 <span>חדר יעד במיקום החדש</span>
                 <strong>{getLocationLabel(locations, destinationRoom)}</strong>
-                <small>{getRoomOrgLabel(groups, destinationRoom)}</small>
+                <small>{getRoomOrgLabel(groups, destinationRoom, { showUnit: canViewUnit })}</small>
               </div>
             </div>
             <div className="option-group">

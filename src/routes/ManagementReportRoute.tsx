@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
+  CartesianGrid,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -29,6 +30,56 @@ const chartLabels = {
   open: "לא עברו",
   transition: "במעבר",
 };
+
+function wrapHebrewLabel(value: string) {
+  const words = value.split(" ");
+  const lines: string[] = [];
+
+  words.forEach((word) => {
+    const current = lines[lines.length - 1];
+
+    if (!current || `${current} ${word}`.length > 16) {
+      lines.push(word);
+      return;
+    }
+
+    lines[lines.length - 1] = `${current} ${word}`;
+  });
+
+  return lines;
+}
+
+function BranchAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+}) {
+  const lines = wrapHebrewLabel(payload?.value ?? "");
+
+  return (
+    <text
+      x={x}
+      y={y}
+      className="chart-axis-label"
+      direction="rtl"
+      textAnchor="middle"
+    >
+      {lines.map((line, index) => (
+        <tspan
+          dy={index === 0 ? "0.85em" : "1.1em"}
+          key={`${line}-${index}`}
+          x={x}
+        >
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
 
 function ChartTooltip({
   active,
@@ -76,6 +127,7 @@ export function ManagementReportRoute() {
   const canAccess =
     currentUser?.role === UserRole.UNIT_MANAGER ||
     currentUser?.role === UserRole.GLOBAL_MANAGER;
+  const canViewUnit = currentUser?.role === UserRole.GLOBAL_MANAGER;
   const visibleGroups =
     currentUser?.role === UserRole.GLOBAL_MANAGER && unitId
       ? groups.filter((group) => group.unit_id === unitId)
@@ -111,6 +163,7 @@ export function ManagementReportRoute() {
       ).length,
     };
   });
+  const chartHeight = 300;
 
   useEffect(() => {
     if (!currentUser) {
@@ -161,7 +214,7 @@ export function ManagementReportRoute() {
 
   return (
     <MobileShell title="דו״ח מנהלים">
-      {currentUser?.role === UserRole.GLOBAL_MANAGER ? (
+      {canViewUnit ? (
         <section className="card-soft flow-card">
           <label className="select-label">
             יחידה
@@ -205,25 +258,30 @@ export function ManagementReportRoute() {
           <span className="legend-item warning">במעבר</span>
         </div>
         <div className="chart-wrap">
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <BarChart
               data={chartData}
-              layout="vertical"
-              margin={{ top: 8, right: 0, left: 8, bottom: 0 }}
+              barCategoryGap={18}
+              margin={{ top: 12, right: 4, left: 4, bottom: 42 }}
             >
-              <XAxis type="number" allowDecimals={false} hide />
-              <YAxis
-                type="category"
-                dataKey="branch"
-                width={88}
+              <CartesianGrid vertical={false} stroke="var(--border)" />
+              <XAxis
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 12 }}
+                dataKey="branch"
+                interval={0}
+                tick={<BranchAxisTick />}
+              />
+              <YAxis
+                allowDecimals={false}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
               />
               <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="closed" stackId="rooms" fill="var(--success)" />
+              <Bar dataKey="closed" stackId="rooms" fill="var(--success)" radius={[6, 6, 0, 0]} />
               <Bar dataKey="open" stackId="rooms" fill="var(--destructive)" />
-              <Bar dataKey="transition" stackId="rooms" fill="var(--warning)" />
+              <Bar dataKey="transition" stackId="rooms" fill="var(--warning)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -238,7 +296,7 @@ export function ManagementReportRoute() {
           <article className="report-row card-soft" key={`${row.unit_id}-${row.branch}`}>
             <div>
               <h2>{row.branch}</h2>
-              <p>{row.unit}</p>
+              {canViewUnit ? <p>{row.unit}</p> : null}
             </div>
             <span className={`status-chip ${statusClass[row.status]}`}>
               {statusLabel[row.status]}
