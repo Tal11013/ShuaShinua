@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ClipboardCheck, Inbox } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { MovingUnitStatus, PackingUnitStatus } from "../../types";
 import {
   GhostButton,
@@ -8,19 +8,12 @@ import {
   PrimaryButton,
   RowButton,
 } from "../components/MobileShell";
-import {
-  OrgSelector,
-  getInitialOrgSelection,
-  type OrgSelection,
-} from "../components/OrgSelector";
-import { StatusChip } from "../components/StatusChip";
 import { useRelocation } from "../state/relocation";
 
 export function ReceivingRoute() {
   const navigate = useNavigate();
   const {
     error,
-    currentUser,
     loading,
     receiveTransport,
     submitting,
@@ -28,9 +21,6 @@ export function ReceivingRoute() {
     units,
   } = useRelocation();
   const [step, setStep] = useState(0);
-  const [scope, setScope] = useState<OrgSelection>(() =>
-    getInitialOrgSelection(currentUser),
-  );
   const [transportId, setTransportId] = useState("");
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const activeTransports = transports.filter(
@@ -39,7 +29,7 @@ export function ReceivingRoute() {
       units.some(
         (unit) =>
           unit.transport_id === transport.moving_id &&
-          unit.source_room_id === scope.room_id,
+          unit.packing_status === PackingUnitStatus.PACKING_ON_WAY,
       ),
   );
   const selectedTransport = transports.find(
@@ -50,6 +40,10 @@ export function ReceivingRoute() {
       unit.packing_status === PackingUnitStatus.PACKING_ON_WAY &&
       unit.transport_id === transportId,
   );
+  const getVehicleDescription = (transport: typeof transports[number]) =>
+    transport.vehicle_details
+      ? `פירוט: ${transport.vehicle_details}`
+      : `מספר רכב: ${transport.vehicle_number ?? "לא קיים במערכת"}`;
 
   const toggleUnit = (unitId: string) => {
     setSelectedUnitIds((current) =>
@@ -58,12 +52,6 @@ export function ReceivingRoute() {
         : [...current, unitId],
     );
   };
-
-  useEffect(() => {
-    if (currentUser) {
-      setScope(getInitialOrgSelection(currentUser));
-    }
-  }, [currentUser]);
 
   const handleNext = async () => {
     if (step === 0) {
@@ -93,7 +81,7 @@ export function ReceivingRoute() {
           <PrimaryButton
             disabled={
               submitting ||
-              (step === 0 ? !scope.room_id || !transportId : selectedUnitIds.length === 0)
+              (step === 0 ? !transportId : selectedUnitIds.length === 0)
             }
             onClick={handleNext}
           >
@@ -121,17 +109,6 @@ export function ReceivingRoute() {
               <Inbox aria-hidden="true" size={20} />
               <h2>בחירת הובלה</h2>
             </div>
-            <OrgSelector
-              title="תחום פעולה"
-              value={scope}
-              onChange={(nextScope) => {
-                setScope(nextScope);
-                setTransportId("");
-                setSelectedUnitIds([]);
-              }}
-              disabled={submitting}
-              roomLabel="חדר מקור"
-            />
             <div className="option-group">
               {activeTransports.length === 0 ? (
                 <p className="empty-state">אין הובלות פעילות לקבלה.</p>
@@ -147,12 +124,9 @@ export function ReceivingRoute() {
                 >
                   <span>
                     <strong>{transport.moving_type}</strong>
-                    <small>
-                      מספר רכב: {transport.vehicle_number ?? "לא קיים במערכת"}
-                    </small>
+                    <small>{getVehicleDescription(transport)}</small>
                     <code>{transport.moving_id}</code>
                   </span>
-                  <StatusChip status={transport.moving_status} />
                 </RowButton>
               ))}
             </div>
@@ -169,7 +143,7 @@ export function ReceivingRoute() {
               <p className="context-note">
                 {selectedTransport.moving_type}
                 <br />
-                מספר רכב: {selectedTransport.vehicle_number ?? "לא קיים במערכת"}
+                {getVehicleDescription(selectedTransport)}
               </p>
             ) : null}
             <div className="option-group">
@@ -187,7 +161,6 @@ export function ReceivingRoute() {
                     <strong>{unit.packing_id}</strong>
                     <small>{unit.items.length} פריטים</small>
                   </span>
-                  <StatusChip status={unit.packing_status} />
                 </label>
               ))}
             </div>

@@ -200,7 +200,7 @@ export function buildSeedState(): RelocationData {
   const transports: MovingUnit[] = [
     {
       moving_id: "move-501",
-      moving_type: MovingType.CAR,
+      moving_type: MovingType.TRACK,
       moving_status: MovingUnitStatus.ON_WAY,
       moving_date: new Date("2026-09-22T09:30:00"),
       vehicle_number: "12345678",

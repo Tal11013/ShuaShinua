@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Archive, MapPin, PackageCheck } from "lucide-react";
+import { Archive, ClipboardCheck, MapPin, PackageCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { BoxType } from "../../types";
+import { BoxType, type Room } from "../../types";
 import {
   GhostButton,
   MobileShell,
@@ -31,6 +31,16 @@ function sanitizeQuantity(value: string) {
   return value === "" ? 0 : Number(value);
 }
 
+function formatRoom(room: Room | undefined, locations: ReturnType<typeof useRelocation>["locations"]) {
+  const location = locations.find((candidate) => candidate.location_id === room?.location);
+
+  if (!room || !location) {
+    return "לא נבחר";
+  }
+
+  return `בניין ${location.building}, קומה ${location.floor}, חדר ${location.room_number}`;
+}
+
 export function PackingRoute() {
   const navigate = useNavigate();
   const {
@@ -39,6 +49,8 @@ export function PackingRoute() {
     error,
     itemCatalogue,
     loading,
+    locations,
+    rooms,
     submitting,
   } = useRelocation();
   const [step, setStep] = useState(0);
@@ -53,19 +65,23 @@ export function PackingRoute() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [validationMessage, setValidationMessage] = useState("");
 
-  const filteredCatalogue = useMemo(() => {
-    return searchItemCatalogue(itemCatalogue, search);
-  }, [itemCatalogue, search]);
-
+  const sourceRoom = rooms.find((room) => room.room_id === source.room_id);
+  const destinationRoom = rooms.find(
+    (room) => room.room_id === destination.room_id,
+  );
+  const filteredCatalogue = useMemo(
+    () => searchItemCatalogue(itemCatalogue, search),
+    [itemCatalogue, search],
+  );
   const selectedItems = Object.entries(quantities)
     .filter(([, quantity]) => quantity > 0)
     .map(([catalog_id, quantity]) => ({ catalog_id, quantity }));
 
   useEffect(() => {
     if (currentUser) {
-      const nextSelection = getInitialOrgSelection(currentUser);
-      setSource(nextSelection);
-      setDestination(nextSelection);
+      const initialSelection = getInitialOrgSelection(currentUser);
+      setSource(initialSelection);
+      setDestination(initialSelection);
     }
   }, [currentUser]);
 
@@ -74,7 +90,14 @@ export function PackingRoute() {
       ? Boolean(source.unit_id && source.branch && source.section && source.room_id)
       : step === 1
         ? Boolean(boxType)
-        : Boolean(destination.unit_id && destination.branch && destination.section && destination.room_id && selectedItems.length);
+        : step === 2
+          ? selectedItems.length > 0
+          : Boolean(
+              destination.unit_id &&
+                destination.branch &&
+                destination.section &&
+                destination.room_id,
+            );
 
   const updateQuantity = (catalogId: string, value: string) => {
     const quantity = sanitizeQuantity(value);
@@ -92,13 +115,23 @@ export function PackingRoute() {
   };
 
   const handleNext = async () => {
-    if (step < 2) {
+    if (!canContinue) {
+      setValidationMessage(
+        step === 3
+          ? "חדר יעד במיקום החדש הוא שדה חובה."
+          : "יש להשלים את השלב לפני המשך.",
+      );
+      return;
+    }
+
+    if (step < 3) {
+      setValidationMessage("");
       setStep((current) => current + 1);
       return;
     }
 
-    if (!boxType || selectedItems.length === 0) {
-      setValidationMessage("יש לבחור לפחות פריט אחד בכמות גדולה מאפס.");
+    if (!boxType || selectedItems.length === 0 || !destination.room_id) {
+      setValidationMessage("יש להשלים מקור, פריטים וחדר יעד במיקום החדש.");
       return;
     }
 
@@ -118,17 +151,23 @@ export function PackingRoute() {
   return (
     <MobileShell
       title="יצירת אריזה"
-      subtitle={`שלב ${step + 1} מתוך 3`}
+      subtitle={`שלב ${step + 1} מתוך 4`}
       backTo="/processes"
       footer={
         <div className="footer-actions">
           {step > 0 ? (
-            <GhostButton disabled={submitting} onClick={() => setStep((current) => current - 1)}>
+            <GhostButton
+              disabled={submitting}
+              onClick={() => {
+                setValidationMessage("");
+                setStep((current) => current - 1);
+              }}
+            >
               חזרה
             </GhostButton>
           ) : null}
           <PrimaryButton disabled={!canContinue || submitting} onClick={handleNext}>
-            {submitting ? "שומר..." : step === 2 ? "סגירת אריזה" : "המשך"}
+            {submitting ? "שומר..." : step === 3 ? "יצירת אריזה" : "המשך"}
           </PrimaryButton>
         </div>
       }
@@ -141,7 +180,7 @@ export function PackingRoute() {
 
       <div className="wizard">
         <div className="stepper" aria-label="התקדמות">
-          {[0, 1, 2].map((index) => (
+          {[0, 1, 2, 3].map((index) => (
             <span
               className={index <= step ? "step-dot active" : "step-dot"}
               key={index}
@@ -153,30 +192,17 @@ export function PackingRoute() {
           <section className="card-soft flow-card">
             <div className="flow-title">
               <MapPin aria-hidden="true" size={20} />
-              <h2>מקור ויעד</h2>
+              <h2>חדר מקור</h2>
             </div>
             <OrgSelector
               title="חדר מקור"
               value={source}
               onChange={(nextSource) => {
                 setSource(nextSource);
-                setDestination((current) => ({
-                  ...current,
-                  unit_id: nextSource.unit_id,
-                  branch: "",
-                  section: "",
-                  room_id: "",
-                }));
+                setQuantities({});
               }}
               disabled={submitting}
               roomLabel="חדר מקור"
-            />
-            <OrgSelector
-              title="חדר יעד במיקום החדש"
-              value={destination}
-              onChange={setDestination}
-              disabled={submitting || !source.unit_id}
-              roomLabel="חדר יעד"
             />
           </section>
         ) : null}
@@ -240,7 +266,42 @@ export function PackingRoute() {
             </div>
           </section>
         ) : null}
+
+        {step === 3 ? (
+          <section className="card-soft flow-card">
+            <div className="flow-title">
+              <ClipboardCheck aria-hidden="true" size={20} />
+              <h2>יעד וסיכום</h2>
+            </div>
+            <OrgSelector
+              title="חדר יעד במיקום החדש"
+              value={destination}
+              onChange={setDestination}
+              disabled={submitting}
+              roomLabel="חדר יעד במיקום החדש"
+            />
+            <div className="route-context card-soft">
+              <div>
+                <span>חדר מקור</span>
+                <strong>{formatRoom(sourceRoom, locations)}</strong>
+              </div>
+              <div>
+                <span>חדר יעד במיקום החדש</span>
+                <strong>{formatRoom(destinationRoom, locations)}</strong>
+              </div>
+              <div>
+                <span>סוג אריזה</span>
+                <strong>{boxType ? boxLabels[boxType] : "לא נבחר"}</strong>
+              </div>
+              <div>
+                <span>פריטים שנבחרו</span>
+                <strong>{selectedItems.length}</strong>
+              </div>
+            </div>
+          </section>
+        ) : null}
       </div>
     </MobileShell>
   );
 }
+

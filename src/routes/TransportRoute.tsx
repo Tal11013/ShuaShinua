@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ClipboardList, Truck } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { MovingType, PackingUnitStatus } from "../../types";
 import {
   GhostButton,
@@ -9,12 +9,10 @@ import {
   RowButton,
 } from "../components/MobileShell";
 import {
-  OrgSelector,
-  getInitialOrgSelection,
-  type OrgSelection,
-} from "../components/OrgSelector";
-import { StatusChip } from "../components/StatusChip";
-import { VEHICLE_NUMBER_MESSAGE, validateVehicleNumber } from "../domain/validation";
+  VEHICLE_NUMBER_MESSAGE,
+  validateVehicleDetails,
+  validateVehicleNumber,
+} from "../domain/validation";
 import { useRelocation } from "../state/relocation";
 
 const movingTypeLabels = {
@@ -24,34 +22,20 @@ const movingTypeLabels = {
 
 export function TransportRoute() {
   const navigate = useNavigate();
-  const {
-    createTransport,
-    currentUser,
-    error,
-    loading,
-    submitting,
-    units,
-  } = useRelocation();
+  const { createTransport, error, loading, submitting, units } = useRelocation();
   const [step, setStep] = useState(0);
-  const [scope, setScope] = useState<OrgSelection>(() =>
-    getInitialOrgSelection(currentUser),
-  );
   const [vehicleNumber, setVehicleNumber] = useState("");
+  const [vehicleDetails, setVehicleDetails] = useState("");
   const [movingType, setMovingType] = useState(MovingType.TRACK);
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const [validationMessage, setValidationMessage] = useState("");
   const sealedUnits = units.filter(
-    (unit) =>
-      unit.packing_status === PackingUnitStatus.PACKING_CLOSED &&
-      unit.source_room_id === scope.room_id,
+    (unit) => unit.packing_status === PackingUnitStatus.PACKING_CLOSED,
   );
-  const isVehicleValid = validateVehicleNumber(vehicleNumber);
-
-  useEffect(() => {
-    if (currentUser) {
-      setScope(getInitialOrgSelection(currentUser));
-    }
-  }, [currentUser]);
+  const isOtherVehicle = movingType === MovingType.CAR;
+  const isVehicleValid = isOtherVehicle
+    ? validateVehicleDetails(vehicleDetails)
+    : validateVehicleNumber(vehicleNumber);
 
   const toggleUnit = (unitId: string) => {
     setSelectedUnitIds((current) =>
@@ -61,10 +45,17 @@ export function TransportRoute() {
     );
   };
 
+  const selectMovingType = (nextType: MovingType) => {
+    setMovingType(nextType);
+    setVehicleNumber("");
+    setVehicleDetails("");
+    setValidationMessage("");
+  };
+
   const handleNext = async () => {
     if (step === 0) {
       if (!isVehicleValid) {
-        setValidationMessage(VEHICLE_NUMBER_MESSAGE);
+        setValidationMessage(isOtherVehicle ? "יש להזין פירוט." : VEHICLE_NUMBER_MESSAGE);
         return;
       }
 
@@ -74,9 +65,10 @@ export function TransportRoute() {
     }
 
     const created = await createTransport({
-      unit_id: scope.unit_id,
       moving_type: movingType,
-      vehicle_number: vehicleNumber,
+      ...(isOtherVehicle
+        ? { vehicle_details: vehicleDetails }
+        : { vehicle_number: vehicleNumber }),
       packing_ids: selectedUnitIds,
     });
 
@@ -100,9 +92,7 @@ export function TransportRoute() {
           <PrimaryButton
             disabled={
               submitting ||
-              (step === 0
-                ? !scope.room_id || !vehicleNumber || !isVehicleValid
-                : selectedUnitIds.length === 0)
+              (step === 0 ? !isVehicleValid : selectedUnitIds.length === 0)
             }
             onClick={handleNext}
           >
@@ -133,47 +123,51 @@ export function TransportRoute() {
               <Truck aria-hidden="true" size={20} />
               <h2>פרטי הובלה</h2>
             </div>
-            <OrgSelector
-              title="תחום פעולה"
-              value={scope}
-              onChange={(nextScope) => {
-                setScope(nextScope);
-                setSelectedUnitIds([]);
-              }}
-              disabled={submitting}
-              roomLabel="חדר מקור"
-            />
-            <div className="field-grid">
-              <label>
-                מספר רכב
-                <input
-                  inputMode="numeric"
-                  value={vehicleNumber}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-
-                    setVehicleNumber(nextValue);
-                    setValidationMessage(
-                      nextValue && !validateVehicleNumber(nextValue)
-                        ? VEHICLE_NUMBER_MESSAGE
-                        : "",
-                    );
-                  }}
-                  placeholder="12345678"
-                />
-              </label>
-            </div>
             <div className="option-group">
               <h3>סוג רכב</h3>
               {Object.values(MovingType).map((candidate) => (
                 <RowButton
                   key={candidate}
                   selected={movingType === candidate}
-                  onClick={() => setMovingType(candidate)}
+                  onClick={() => selectMovingType(candidate)}
                 >
                   <span>{movingTypeLabels[candidate]}</span>
                 </RowButton>
               ))}
+            </div>
+            <div className="field-grid">
+              {isOtherVehicle ? (
+                <label>
+                  פירוט
+                  <input
+                    value={vehicleDetails}
+                    onChange={(event) => {
+                      setVehicleDetails(event.target.value);
+                      setValidationMessage("");
+                    }}
+                    placeholder="אמצעי זיהוי"
+                  />
+                </label>
+              ) : (
+                <label>
+                  מספר רכב
+                  <input
+                    inputMode="numeric"
+                    value={vehicleNumber}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+
+                      setVehicleNumber(nextValue);
+                      setValidationMessage(
+                        nextValue && !validateVehicleNumber(nextValue)
+                          ? VEHICLE_NUMBER_MESSAGE
+                          : "",
+                      );
+                    }}
+                    placeholder="12345678"
+                  />
+                </label>
+              )}
             </div>
           </section>
         ) : null}
@@ -186,7 +180,7 @@ export function TransportRoute() {
             </div>
             <div className="option-group">
               {sealedUnits.length === 0 ? (
-                <p className="empty-state">אין אריזות סגורות בתחום שנבחר.</p>
+                <p className="empty-state">אין אריזות סגורות זמינות.</p>
               ) : null}
               {sealedUnits.map((unit) => (
                 <label className="check-row" key={unit.packing_id}>
@@ -199,7 +193,6 @@ export function TransportRoute() {
                     <strong>{unit.packing_id}</strong>
                     <small>{unit.box_type}</small>
                   </span>
-                  <StatusChip status={unit.packing_status} />
                 </label>
               ))}
             </div>

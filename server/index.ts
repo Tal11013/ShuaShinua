@@ -28,6 +28,7 @@ import {
 } from "../src/domain/users";
 import {
   validateCatalogueQuantities,
+  validateVehicleDetails,
   validateVehicleNumber,
   VEHICLE_NUMBER_MESSAGE,
 } from "../src/domain/validation";
@@ -271,28 +272,34 @@ app.post("/api/packing", (request: ApiRequest, response) => {
 app.post("/api/transports", (request: ApiRequest, response) => {
   const user = requireUser(request);
   const {
-    unit_id,
     moving_type,
     vehicle_number,
+    vehicle_details,
     packing_ids,
   } = request.body as {
-    unit_id?: string;
     moving_type?: MovingType;
     vehicle_number?: string;
+    vehicle_details?: string;
     packing_ids?: string[];
   };
-
-  if (!validateUnitAccess(user, unit_id)) {
-    return forbidden(response, "אין הרשאה ליצור הובלה ביחידה זו.");
-  }
 
   if (!Object.values(MovingType).includes(moving_type as MovingType)) {
     return badRequest(response, "יש לבחור סוג רכב.");
   }
   const selectedMovingType = moving_type as MovingType;
 
-  if (!vehicle_number || !validateVehicleNumber(vehicle_number)) {
+  if (
+    selectedMovingType !== MovingType.CAR &&
+    (!vehicle_number || !validateVehicleNumber(vehicle_number))
+  ) {
     return badRequest(response, VEHICLE_NUMBER_MESSAGE);
+  }
+
+  if (
+    selectedMovingType === MovingType.CAR &&
+    (!vehicle_details || !validateVehicleDetails(vehicle_details))
+  ) {
+    return badRequest(response, "יש להזין פירוט.");
   }
 
   const selectedUnits = data.units.filter((unit) =>
@@ -310,7 +317,7 @@ app.post("/api/transports", (request: ApiRequest, response) => {
 
     return (
       !unit.source_room_id ||
-      getRoomUnitId(data.rooms, data.groups, unit.source_room_id) !== unit_id
+      !isRoomPermitted(data.rooms, data.groups, user, unit.source_room_id)
     );
   });
 
@@ -324,7 +331,9 @@ app.post("/api/transports", (request: ApiRequest, response) => {
     moving_type: selectedMovingType,
     moving_status: MovingUnitStatus.ON_WAY,
     moving_date: new Date(),
-    vehicle_number,
+    ...(selectedMovingType === MovingType.CAR
+      ? { vehicle_details: vehicle_details!.trim() }
+      : { vehicle_number }),
     packing_unit_ids: selectedUnits.map((unit) => unit.packing_id),
   };
 
