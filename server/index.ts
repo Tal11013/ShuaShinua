@@ -6,6 +6,7 @@ import { errorHandler } from "./http.js";
 import { usersRouter } from "./routes/users.js";
 import { groupsRouter } from "./routes/groups.js";
 import { relocationRouter } from "./routes/relocation.js";
+import { ocrRouter } from "./routes/ocr.js";
 import {
   categoriesRouter,
   groupCodesRouter,
@@ -51,6 +52,7 @@ app.use("/api/mapping-reports", mappingReportsRouter);
 app.use("/api/item-types", itemTypesRouter);
 app.use("/api/categories", categoriesRouter);
 app.use("/api/sub-categories", subCategoriesRouter);
+app.use("/api/ocr", ocrRouter);
 app.use("/api", relocationRouter);
 
 app.use("/api", (_request, response) => {

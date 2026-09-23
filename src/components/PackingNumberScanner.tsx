@@ -2,6 +2,7 @@ import { Camera, ScanLine } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GhostButton, PrimaryButton } from "./MobileShell";
 import { Sheet } from "./Sheet";
+import { apiUrl } from "../lib/api";
 
 type ScannerStatus = "requesting" | "ready" | "recognizing";
 
@@ -30,14 +31,12 @@ export function PackingNumberScanner({
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<ScannerStatus>("requesting");
   const [error, setError] = useState("");
-  const [progress, setProgress] = useState(0);
 
   const closeScanner = () => {
     stopStream(streamRef.current);
     streamRef.current = null;
     setOpen(false);
     setError("");
-    setProgress(0);
   };
 
   useEffect(
@@ -51,7 +50,6 @@ export function PackingNumberScanner({
     setOpen(true);
     setStatus("requesting");
     setError("");
-    setProgress(0);
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("לא ניתן לפתוח מצלמה. יש לפתוח את המערכת בחיבור HTTPS ולנסות שוב.");
@@ -98,7 +96,6 @@ export function PackingNumberScanner({
 
     setStatus("recognizing");
     setError("");
-    setProgress(0);
 
     const canvas = document.createElement("canvas");
     const sourceWidth = video.videoWidth * 0.8;
@@ -123,30 +120,34 @@ export function PackingNumberScanner({
         canvas.height,
       );
 
-    let worker: Awaited<ReturnType<typeof import("tesseract.js")["createWorker"]>> | null =
-      null;
-
     try {
-      const { createWorker, OEM, PSM } = await import("tesseract.js");
-
-      worker = await createWorker("eng", OEM.LSTM_ONLY, {
-        logger: (message) => {
-          if (message.status === "recognizing text") {
-            setProgress(Math.round(message.progress * 100));
-          }
-        },
-      });
-      await worker.setParameters({
-        tessedit_char_whitelist: "0123456789",
-        tessedit_pageseg_mode: PSM.SINGLE_LINE,
+      const image = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("Could not capture camera image"));
+        }, "image/jpeg", 0.92);
       });
 
-      const result = await worker.recognize(canvas);
-      const packingId = findPackingId(result.data.text, availablePackingIds);
+      const response = await fetch(apiUrl("/api/ocr/scan-number"), {
+        method: "POST",
+        headers: { "Content-Type": "image/jpeg" },
+        body: image,
+      });
+
+      const result = (await response.json()) as {
+        error?: string;
+        message?: string;
+        lines?: string[];
+      };
+
+      if (!response.ok) {
+        throw new Error(result.message || result.error || "OCR failed");
+      }
+
+      const detectedText = (result.lines ?? []).join(" ").replace(/\s+/g, " ").trim();
+      const packingId = findPackingId(detectedText, availablePackingIds);
 
       if (packingId === undefined) {
-        const detectedText = result.data.text.replace(/\s+/g, " ").trim();
-
         setError(
           detectedText
             ? `זוהה הטקסט “${detectedText}”, אך לא נמצאה אריזה סגורה זמינה במספר הזה.`
@@ -158,11 +159,14 @@ export function PackingNumberScanner({
 
       onDetected(packingId);
       closeScanner();
-    } catch {
-      setError("זיהוי המספר נכשל. יש לנסות שוב כאשר המספר מואר וברור.");
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "";
+      setError(
+        message.includes("port 8001")
+          ? "שירות הזיהוי המקומי אינו פועל. יש להפעיל את שרת ה-Python ולנסות שוב."
+          : "זיהוי המספר נכשל. יש לנסות שוב כאשר המספר מואר וברור.",
+      );
       setStatus("ready");
-    } finally {
-      await worker?.terminate();
     }
   };
 
@@ -194,7 +198,7 @@ export function PackingNumberScanner({
 
           {status === "recognizing" ? (
             <p className="packing-scanner-status">
-              מזהה מספר אריזה... {progress > 0 ? `${progress}%` : ""}
+              מזהה מספר אריזה...
             </p>
           ) : null}
           {error ? <p className="state-message error">{error}</p> : null}

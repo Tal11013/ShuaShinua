@@ -8,6 +8,8 @@ export default defineConfig({
   envPrefix: ["VITE_", "NEXT_PUBLIC_"],
   server: {
     port: 5173,
+    strictPort: true,
+    allowedHosts: [".trycloudflare.com"],
     proxy: {
       "/api": "http://localhost:3001",
     },
