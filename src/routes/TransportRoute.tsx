@@ -81,7 +81,7 @@ export function TransportRoute() {
   return (
     <MobileShell
       title="יצירת הובלה"
-      subtitle={`שלב ${step + 1} מתוך 2`}
+      subtitle= ""
       backTo="/processes"
       footer={
         <div className="footer-actions">

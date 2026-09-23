@@ -65,7 +65,7 @@ export function ReceivingRoute() {
   return (
     <MobileShell
       title="קבלת ציוד"
-      subtitle={`שלב ${step + 1} מתוך 2`}
+      subtitle=""
       backTo="/processes"
       footer={
         <div className="footer-actions">

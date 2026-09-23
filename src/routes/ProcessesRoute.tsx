@@ -45,7 +45,7 @@ function ProcessCard({
             {count}
           </span>
         ) : (
-          <ChevronLeft aria-hidden="true" size={20} />
+          <br />
         )}
       </span>
     </>
@@ -73,7 +73,7 @@ export function ProcessesRoute() {
   const receivedUnits = getDistributableUnits(units, rooms).length;
 
   return (
-    <MobileShell title="שינוע ציוד" subtitle="בחר/י פעולה אחת להמשך">
+    <MobileShell title="שינוע ציוד" subtitle="">
       {loading ? <p className="state-message">טוען נתונים...</p> : null}
       {error ? <p className="state-message error">{error}</p> : null}
       <section className="process-list">

@@ -69,7 +69,7 @@ export function DistributionRoute() {
   return (
     <MobileShell
       title="פיזור ציוד"
-      subtitle={`שלב ${step + 1} מתוך 2`}
+      subtitle=""
       backTo="/processes"
       footer={
         <div className="footer-actions">

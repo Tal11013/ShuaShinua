@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, LogOut } from "lucide-react";
 import type {
   ButtonHTMLAttributes,
   MouseEventHandler,
@@ -35,11 +35,16 @@ export function MobileShell({
           <div>
             <h1>{title}</h1>
             {subtitle ? <p>{subtitle}</p> : null}
-            {currentUser ? <p>{currentUser.name}</p> : null}
+            {currentUser ? <p>ברוך הבא, {currentUser.name}</p> : null}
           </div>
           {currentUser ? (
-            <button className="logout-button" type="button" onClick={logout}>
-              יציאה
+            <button
+              className="logout-button"
+              type="button"
+              onClick={logout}
+              aria-label="יציאה"
+            >
+              <LogOut size={18} aria-hidden="true" />
             </button>
           ) : null}
         </div>
