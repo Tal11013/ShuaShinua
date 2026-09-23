@@ -10,6 +10,7 @@ import { PackingRoute } from "./routes/PackingRoute";
 import { ProcessesRoute } from "./routes/ProcessesRoute";
 import { ReceivingRoute } from "./routes/ReceivingRoute";
 import { TransportRoute } from "./routes/TransportRoute";
+import { ChatRoute } from "./routes/ChatRoute";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -57,6 +58,12 @@ const managementRoute = createRoute({
   component: ManagementReportRoute,
 });
 
+const chatRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/chat",
+  component: ChatRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   dashboardRoute,
   processesRoute,
@@ -65,6 +72,7 @@ const routeTree = rootRoute.addChildren([
   receivingRoute,
   distributionRoute,
   managementRoute,
+  chatRoute,
 ]);
 
 export const router = createRouter({ routeTree });

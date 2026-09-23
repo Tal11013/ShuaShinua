@@ -14,6 +14,9 @@ def _get_connection():
     if not db_url:
         raise ValueError("SUPABASE_DB_URL environment variable is not set. Please set it in agent/.env")
     
+    # Strip any accidental quotes from the .env file that might break psycopg2
+    db_url = db_url.strip('"').strip("'")
+    
     # Supabase connection string usually starts with postgresql:// or postgres://
     conn = psycopg2.connect(db_url)
     return conn

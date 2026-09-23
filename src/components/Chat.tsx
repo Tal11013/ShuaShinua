@@ -14,8 +14,24 @@ export default function Chat() {
     const [isLoading, setIsLoading] = useState(false);
     const [selectedModel, setSelectedModel] = useState('logfare/auto');
     const [colabStatus, setColabStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected');
+    const [thinkingDots, setThinkingDots] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
+
+    // Animation for loading dots
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isLoading) {
+            setThinkingDots('');
+            interval = setInterval(() => {
+                setThinkingDots(prev => {
+                    if (prev === '...') return '';
+                    return prev + '.';
+                });
+            }, 500);
+        }
+        return () => clearInterval(interval);
+    }, [isLoading]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -130,9 +146,9 @@ export default function Chat() {
                         </optgroup>
                         <optgroup label="Groq (Cloud - Fast but Rate Limited)">
                             <option value="llama-3.1-8b-instant">Llama 3.1 8B</option>
-                            <option value="llama-3.1-70b-versatile">Llama 3.1 70B</option>
+                            <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
                             <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-                            <option value="gemma-7b-it">Gemma 7B</option>
+                            <option value="gemma2-9b-it">Gemma 2 9B</option>
                         </optgroup>
                         <optgroup label="Local (Ollama - Free & Unlimited)">
                             <option value="local/llama3.1">Local: Llama 3.1 8B</option>
@@ -169,7 +185,9 @@ export default function Chat() {
                 {isLoading && (
                     <div className="message assistant loading">
                         <div className="message-content">
-                            <p>חושב...</p>
+                            <p style={{ direction: 'ltr', textAlign: 'right' }}>
+                                חושב{thinkingDots}
+                            </p>
                         </div>
                     </div>
                 )}

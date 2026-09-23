@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Bar,
   BarChart,
@@ -62,6 +63,7 @@ async function readError(response: Response) {
 }
 
 export function ManagementReportRoute() {
+  const navigate = useNavigate();
   const { api, currentUser, groups, rooms } = useRelocation();
   const [rows, setRows] = useState<GroupReportRow[]>([]);
   const [unitId, setUnitId] = useState("");
@@ -256,6 +258,32 @@ export function ManagementReportRoute() {
           </article>
         ))}
       </section>
+
+      {/* Floating Action Button for Chat Agent */}
+      <button
+        onClick={() => navigate({ to: '/chat' })}
+        style={{
+          position: "fixed",
+          bottom: "2rem",
+          left: "2rem",
+          width: "60px",
+          height: "60px",
+          borderRadius: "50%",
+          backgroundColor: "#1976d2",
+          color: "white",
+          border: "none",
+          boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
+          fontSize: "24px",
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000
+        }}
+        aria-label="Open AI Agent"
+      >
+        💬
+      </button>
     </MobileShell>
   );
 }

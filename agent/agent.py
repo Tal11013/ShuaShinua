@@ -199,8 +199,8 @@ DEFAULT_MODEL = "llama-3.1-8b-instant"
 
 FALLBACK_MODELS = [
     "llama-3.1-8b-instant",
-    "llama-3.1-70b-versatile",
-    "llama3-8b-8192"
+    "llama-3.3-70b-versatile",
+    "mixtral-8x7b-32768"
 ]
 
 def run_conversation(user_prompt: str, messages: list = None, model: str = None):
