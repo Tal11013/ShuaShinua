@@ -3,11 +3,12 @@ import os
 from openai import OpenAI
 import tools
 
-# Initialize the client as None, we will set it up before the loop
-client = None
+# Initialize the clients as None, we will set them up before the loop
+GROQ_CLIENT = None
+LOCAL_CLIENT = None
 
 def init_client():
-    global client
+    global GROQ_CLIENT, LOCAL_CLIENT
     
     # Load from .env file if it exists
     try:
@@ -22,10 +23,47 @@ def init_client():
         print("You can get a free API key instantly at https://console.groq.com/keys")
         api_key = input("Please enter your Groq API Key: ").strip()
     # We pass the Groq API key and override the base_url to Groq's endpoint
-    client = OpenAI(
+    GROQ_CLIENT = OpenAI(
         api_key=api_key,
         base_url="https://api.groq.com/openai/v1"
     )
+    
+    # Initialize the local client (assumes Ollama running on default port)
+    LOCAL_CLIENT = OpenAI(
+        api_key="ollama", # API key is required by the SDK but ignored by Ollama
+        base_url="http://localhost:11434/v1"
+    )
+    
+    global OPENROUTER_CLIENT, CEREBRAS_CLIENT
+    OPENROUTER_CLIENT = None
+    if os.environ.get("OPENROUTER_API_KEY"):
+        OPENROUTER_CLIENT = OpenAI(
+            api_key=os.environ.get("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1"
+        )
+        
+    CEREBRAS_CLIENT = None
+    if os.environ.get("CEREBRAS_API_KEY"):
+        CEREBRAS_CLIENT = OpenAI(
+            api_key=os.environ.get("CEREBRAS_API_KEY"),
+            base_url="https://api.cerebras.ai/v1"
+        )
+        
+    global COLAB_CLIENT
+    COLAB_CLIENT = None
+    if os.environ.get("COLAB_API_BASE"):
+        COLAB_CLIENT = OpenAI(
+            api_key="colab", # Not checked by Ollama
+            base_url=f"{os.environ.get('COLAB_API_BASE').rstrip('/')}/v1"
+        )
+        
+    global LOGFARE_CLIENT
+    LOGFARE_CLIENT = None
+    if os.environ.get("LOGFARE_API_KEY"):
+        LOGFARE_CLIENT = OpenAI(
+            api_key=os.environ.get("LOGFARE_API_KEY"),
+            base_url="https://logfare.ai/v1"
+        )
 
 # ==========================================
 # 1. Define the Tool Schemas
@@ -45,6 +83,23 @@ TOOLS_SCHEMA = [
                     }
                 },
                 "required": ["branch_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_yechida_packing_summary",
+            "description": "Returns total items, packed items, missing items, and balmas count for a specific unit (יחידה).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "yechida_name": {
+                        "type": "string",
+                        "description": "The exact name of the unit, e.g., 'שחר' or 'מצפן'"
+                    }
+                },
+                "required": ["yechida_name"]
             }
         }
     },
@@ -123,6 +178,44 @@ TOOLS_SCHEMA = [
                     }
                 },
                 "required": ["title", "x_label", "y_label", "data"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_generic_pie_chart",
+            "description": "Generates a generic pie chart and saves it as an image.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The title of the chart."
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "A JSON string representing the data to plot (e.g., '{\"Category A\": 40, \"Category B\": 60}')."
+                    }
+                },
+                "required": ["title", "data"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_sql_query",
+            "description": "Executes a custom SELECT query on the SQLite database to fetch specific insights. Tables: items(catalog_id, description, price, room_id, item_status, is_balmas), rooms(room_id, location_id, group_id), locations(location_id, building, floor, room_number), idf_groups(id, yehida, anaf, mador, tzevet).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "A valid SQLite SELECT query."
+                    }
+                },
+                "required": ["query"]
             }
         }
     },
@@ -230,24 +323,32 @@ TOOLS_SCHEMA = [
 # Map tool names to the actual python functions in tools.py
 AVAILABLE_FUNCTIONS = {
     "get_branch_packing_summary": tools.get_branch_packing_summary,
+    "get_yechida_packing_summary": tools.get_yechida_packing_summary,
     "list_missing_items": tools.list_missing_items,
     "get_active_trucks": tools.get_active_trucks,
     "generate_branch_packing_pie_chart": tools.generate_branch_packing_pie_chart,
     "generate_truck_status_bar_chart": tools.generate_truck_status_bar_chart,
     "generate_generic_bar_chart": tools.generate_generic_bar_chart,
+    "generate_generic_pie_chart": tools.generate_generic_pie_chart,
     "calculate": tools.calculate,
     "query_items": tools.query_items,
     "get_team_equipment_summary": tools.get_team_equipment_summary,
     "get_room_details": tools.get_room_details,
-    "get_expensive_unpacked_items": tools.get_expensive_unpacked_items
+    "get_expensive_unpacked_items": tools.get_expensive_unpacked_items,
+    "execute_sql_query": tools.execute_sql_query
 }
 
 
 # ==========================================
 # 2. Execution Loop
 # ==========================================
-DEFAULT_MODEL = "openai/gpt-oss-20b"
+DEFAULT_MODEL = "llama-3.1-8b-instant"
 
+FALLBACK_MODELS = [
+    "llama-3.1-8b-instant",
+    "llama-3.1-70b-versatile",
+    "llama3-8b-8192"
+]
 
 def run_conversation(user_prompt: str, messages: list = None, model: str = None):
     """
@@ -257,35 +358,163 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
     # An optional GROQ_MODEL entry in .env overrides this default.
     model = model or os.environ.get("GROQ_MODEL", DEFAULT_MODEL)
 
+    is_local = model.startswith("local/")
+    is_openrouter = model.startswith("openrouter/")
+    is_cerebras = model.startswith("cerebras/")
+    is_colab = model.startswith("colab/")
+    is_logfare = model.startswith("logfare/")
+    
+    if is_local or is_colab:
+        sys_content = "You are a helpful logistics AI assistant managing a move. You answer strictly based on the provided tool data. ALWAYS answer in English."
+    else:
+        sys_content = "You are a helpful logistics AI assistant managing a move. You answer strictly based on the provided tool data. ALWAYS answer in Hebrew."
+
     if messages is None:
-        messages = [
-            {"role": "system", "content": "You are a helpful logistics AI assistant managing a move. You answer strictly based on the provided tool data. ALWAYS answer in Hebrew."}
-        ]
+        messages = [{"role": "system", "content": sys_content}]
+    else:
+        # Update existing system prompt if present, or prepend it
+        if len(messages) > 0 and messages[0].get("role") == "system":
+            messages[0]["content"] = sys_content
+        else:
+            messages.insert(0, {"role": "system", "content": sys_content})
     
     messages.append({"role": "user", "content": user_prompt})
-
-    print("Agent is thinking...\n")
+    
+    rate_limit_info = {}
+    print(f"Agent is thinking (Model: {model})...\n")
+    
+    if is_local:
+        actual_model = model.replace("local/", "", 1)
+        active_client = LOCAL_CLIENT
+        models_to_try = [actual_model] # Don't fallback
+    elif is_colab:
+        actual_model = model.replace("colab/", "", 1)
+        active_client = COLAB_CLIENT
+        models_to_try = [actual_model]
+        if not active_client:
+            return "Error: COLAB_API_BASE is not set in .env", messages, rate_limit_info
+    elif is_logfare:
+        actual_model = model.replace("logfare/", "", 1)
+        active_client = LOGFARE_CLIENT
+        models_to_try = [actual_model]
+        if not active_client:
+            return "Error: LOGFARE_API_KEY is not set in .env", messages, rate_limit_info
+    elif is_openrouter:
+        actual_model = model.replace("openrouter/", "", 1)
+        active_client = OPENROUTER_CLIENT
+        models_to_try = [actual_model]
+        if not active_client:
+            return "Error: OPENROUTER_API_KEY is not set in .env", messages, rate_limit_info
+    elif is_cerebras:
+        actual_model = model.replace("cerebras/", "", 1)
+        active_client = CEREBRAS_CLIENT
+        models_to_try = [actual_model]
+        if not active_client:
+            return "Error: CEREBRAS_API_KEY is not set in .env", messages, rate_limit_info
+    else:
+        actual_model = model
+        active_client = GROQ_CLIENT
+        models_to_try = [actual_model] + [m for m in FALLBACK_MODELS if m != actual_model]
 
     # Step 1: Send the conversation and available functions to the model
     max_turns = 5
     for turn in range(max_turns):
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                tools=TOOLS_SCHEMA,
-                tool_choice="auto"
-            )
-        except Exception as e:
-            return f"Error contacting LLM API: {e}", messages
+        
+        success = False
+        last_error = None
+        
+        for current_model in models_to_try:
+            try:
+                raw_response = active_client.chat.completions.with_raw_response.create(
+                    model=current_model,
+                    messages=messages,
+                    tools=TOOLS_SCHEMA,
+                    tool_choice="auto"
+                )
+                
+                headers = raw_response.headers
+                
+                # HTTPX headers are case-insensitive, but just in case Groq uses a different casing:
+                for k, v in headers.items():
+                    k_lower = k.lower()
+                    if "remaining-requests" in k_lower:
+                        rate_limit_info["requests_remaining"] = v
+                    elif "remaining-tokens" in k_lower:
+                        rate_limit_info["tokens_remaining"] = v
+                    elif "reset-tokens" in k_lower:
+                        rate_limit_info["reset_time"] = v
+                    
+                response = raw_response.parse()
+                success = True
+                
+                # If successful, use this model for the rest of the turns
+                if is_local:
+                    model = f"local/{current_model}"
+                else:
+                    model = current_model 
+                    
+                break # Break out of the fallback loop!
+                
+            except Exception as e:
+                last_error = e
+                # If it's a global account rate limit, don't bother with fallbacks since they all share the limit
+                if "tokens per day (TPD)" in str(e):
+                    print(f"Model {current_model} hit a global TPD rate limit. Stopping fallbacks.")
+                    break
+                print(f"Model {current_model} failed: {e}. Trying next model...")
+                continue
+                
+        if not success:
+            error_msg = f"Error: All models failed. Last error: {last_error}"
+            messages.append({"role": "assistant", "content": error_msg})
+            return error_msg, messages, rate_limit_info
             
         response_message = response.choices[0].message
         
+        # Heuristic for Local Models: Sometimes they output the tool call as raw JSON in the content field
+        if not getattr(response_message, "tool_calls", None) and response_message.content:
+            content_str = response_message.content.strip()
+            if content_str.startswith("{") and '"name"' in content_str:
+                try:
+                    parsed = json.loads(content_str)
+                    if "name" in parsed and ("parameters" in parsed or "arguments" in parsed):
+                        # Mock the OpenAI tool call object
+                        class MockFunction:
+                            def __init__(self, name, arguments):
+                                self.name = name
+                                self.arguments = arguments
+                        class MockToolCall:
+                            def __init__(self, id, function):
+                                self.id = id
+                                self.type = "function"
+                                self.function = function
+                        
+                        args = parsed.get("parameters", parsed.get("arguments", {}))
+                        if isinstance(args, dict):
+                            args = json.dumps(args)
+                            
+                        response_message.tool_calls = [
+                            MockToolCall(id="call_local_mock", function=MockFunction(name=parsed["name"], arguments=args))
+                        ]
+                        response_message.content = None # Clear the raw JSON from content
+                except Exception:
+                    pass
+
         # If no tools were called, the model is providing its final answer
         if not getattr(response_message, "tool_calls", None):
             final_answer = response_message.content
-            messages.append({"role": "assistant", "content": final_answer})
-            return final_answer, messages
+            if not final_answer:
+                if turn > 0:
+                    # The model successfully executed tools and decided it has nothing more to add (e.g. after generating a chart)
+                    final_answer = ""
+                else:
+                    final_answer = "שגיאה: המודל הפסיק לענות או החזיר תשובה ריקה."
+            
+            # Append the assistant's response to the conversation history if it's not empty
+            if final_answer:
+                messages.append({"role": "assistant", "content": final_answer})
+                
+            return final_answer, messages, rate_limit_info
             
         # The model called tools. Add its tool call request to the history
         messages.append(response_message)
@@ -327,8 +556,13 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
                     elif function_name == "get_expensive_unpacked_items":
                         min_price = function_args.get("min_price", 1000)
                         function_response = function_to_call(min_price=min_price)
+                    elif function_name == "generate_generic_pie_chart":
+                        function_response = function_to_call(
+                            title=function_args.get("title"),
+                            data=function_args.get("data")
+                        )
                     else:
-                        function_response = function_to_call()
+                        function_response = function_to_call(**function_args)
                 except Exception as e:
                     # If JSON parsing or the function itself fails, feed the error back to the LLM
                     function_response = {"error": f"Tool execution failed: {str(e)}. Please correct your arguments and try again."}
@@ -348,7 +582,7 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
     # If it loops 5 times without a final answer, abort safely
     abort_msg = "Error: Agent reached maximum tool execution turns."
     messages.append({"role": "assistant", "content": abort_msg})
-    return abort_msg, messages
+    return abort_msg, messages, rate_limit_info
 
 
 # ==========================================
@@ -383,7 +617,7 @@ if __name__ == "__main__":
             if not user_input.strip():
                 continue
                 
-            answer, chat_history = run_conversation(user_input, messages=chat_history)
+            answer, chat_history, _ = run_conversation(user_input, messages=chat_history)
             print("\nAGENT:")
             print_rtl(answer)
         except KeyboardInterrupt:

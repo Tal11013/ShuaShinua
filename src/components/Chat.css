@@ -105,14 +105,109 @@
 
 .chat-input-form button {
     margin-right: 10px; /* RTL spacing */
-    padding: 10px 20px;
+    padding: 12px 24px;
     background-color: #007bff;
     color: white;
     border: none;
-    border-radius: 20px;
+    border-radius: 6px;
     cursor: pointer;
-    font-weight: bold;
+    font-size: 1rem;
+    font-weight: 500;
     transition: background-color 0.2s;
+    font-family: inherit;
+}
+
+.chat-input-form button:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.chat-input-form button:disabled {
+    background-color: #333;
+    color: #666;
+    cursor: not-allowed;
+}
+
+/* Stop Button Styles */
+.chat-input-form button.stop-button {
+    background-color: #dc3545;
+}
+
+.chat-input-form button.stop-button:hover {
+    background-color: #bb2d3b;
+}
+
+/* Rate Limit Badge */
+.rate-limit-badge {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: #1e1e1e;
+    color: #a0a0a0;
+    font-size: 0.75rem;
+    border-bottom: 1px solid #333;
+    font-family: 'Inter', sans-serif;
+}
+
+.rate-limit-label {
+    font-weight: 600;
+    color: #ccc;
+}
+
+.rate-limit-value {
+    font-family: monospace;
+    background: #2a2a2a;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.rate-limit-value.warning {
+    background: #ff9800;
+    color: #fff;
+    font-weight: bold;
+}
+
+.rate-limit-separator {
+    color: #555;
+}
+
+/* Chat Header & Model Selector */
+.chat-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 16px;
+    background-color: #1a1a1a;
+    border-bottom: 1px solid #333;
+}
+
+.model-selector-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #aaa;
+}
+
+.model-select {
+    background-color: #2a2a2a;
+    color: #fff;
+    border: 1px solid #444;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+}
+
+.model-select:focus {
+    border-color: #007bff;
+}
+
+.model-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .chat-input-form button:hover:not(:disabled) {

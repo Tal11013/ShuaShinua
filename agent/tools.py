@@ -11,6 +11,37 @@ def _get_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def execute_sql_query(query: str) -> Dict[str, Any]:
+    """
+    Executes a read-only SQL SELECT query on the logistics database.
+    """
+    if not query.strip().upper().startswith("SELECT"):
+        return {"error": "Only SELECT queries are allowed for security."}
+        
+    try:
+        conn = _get_connection()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        
+        # Get column names
+        columns = [description[0] for description in cursor.description] if cursor.description else []
+        
+        results = []
+        for row in rows:
+            results.append(dict(row))
+            
+        conn.close()
+        
+        return {
+            "status": "success",
+            "count": len(results),
+            "columns": columns,
+            "data": results
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 def get_branch_packing_summary(branch_name: str) -> Dict[str, Any]:
     """
     Returns total items, packed items, missing items, and balmas count for a specific ענף (branch).
@@ -39,6 +70,40 @@ def get_branch_packing_summary(branch_name: str) -> Dict[str, Any]:
         
     return {
         "branch_name": branch_name,
+        "total_items": row["total_items"] or 0,
+        "packed_items": row["packed_items"] or 0,
+        "missing_items": row["missing_items"] or 0,
+        "balmas_items": row["balmas_items"] or 0
+    }
+
+def get_yechida_packing_summary(yechida_name: str) -> Dict[str, Any]:
+    """
+    Returns total items, packed items, missing items, and balmas count for a specific יחידה (unit/yechida).
+    """
+    conn = _get_connection()
+    cursor = conn.cursor()
+    
+    query = '''
+        SELECT 
+            COUNT(i.catalog_id) as total_items,
+            SUM(CASE WHEN i.item_status = 'PACKED' THEN 1 ELSE 0 END) as packed_items,
+            SUM(CASE WHEN i.item_status = 'MISSING' THEN 1 ELSE 0 END) as missing_items,
+            SUM(CASE WHEN i.is_balmas = 1 THEN 1 ELSE 0 END) as balmas_items
+        FROM items i
+        JOIN rooms r ON i.room_id = r.room_id
+        JOIN idf_groups g ON r.group_id = g.id
+        WHERE g.yehida = ?
+    '''
+    
+    cursor.execute(query, (yechida_name,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row or row["total_items"] == 0:
+        return {"error": f"Yechida '{yechida_name}' not found or has no items."}
+        
+    return {
+        "yechida_name": yechida_name,
         "total_items": row["total_items"] or 0,
         "packed_items": row["packed_items"] or 0,
         "missing_items": row["missing_items"] or 0,
@@ -333,8 +398,9 @@ def generate_branch_packing_pie_chart(branch_name: str) -> Dict[str, str]:
     
     # Replace spaces for valid filename
     safe_name = branch_name.replace(' ', '_').replace('"', '').replace("'", "")
-    filename = f"pie_chart_{safe_name}.png"
-    plt.savefig(filename)
+    filename = f"images/pie_chart_{safe_name}.png"
+    filepath = os.path.join(os.path.dirname(__file__), filename)
+    plt.savefig(filepath)
     plt.close()
     
     return {"status": "success", "message": f"Pie chart saved successfully as {filename}", "file_path": filename}
@@ -370,8 +436,9 @@ def generate_truck_status_bar_chart() -> Dict[str, str]:
     plt.xticks(rotation=45)
     plt.tight_layout()
     
-    filename = "truck_status_bar_chart.png"
-    plt.savefig(filename)
+    filename = "images/truck_status_bar_chart.png"
+    filepath = os.path.join(os.path.dirname(__file__), filename)
+    plt.savefig(filepath)
     plt.close()
     
     return {"status": "success", "message": f"Bar chart saved successfully as {filename}", "file_path": filename}
@@ -404,8 +471,11 @@ def generate_generic_bar_chart(title: str, x_label: str, y_label: str, data: Any
             if isinstance(parsed, dict):
                 categories = list(parsed.keys())
                 values = list(parsed.values())
+            elif isinstance(parsed, list):
+                categories = [str(item.get("label", f"Item {i}")) for i, item in enumerate(parsed)]
+                values = [float(item.get("value", 0)) for item in parsed]
             else:
-                return {"error": "JSON string parsed into unsupported format."}
+                return {"error": "JSON string must be a dict or list of dicts."}
         except:
             return {"error": "Could not parse data string."}
     else:
@@ -437,11 +507,83 @@ def generate_generic_bar_chart(title: str, x_label: str, y_label: str, data: Any
     plt.tight_layout()
     
     safe_name = str(title).replace(' ', '_').replace('"', '').replace("'", "").replace("/", "")
-    filename = f"custom_bar_chart_{safe_name}.png"
-    plt.savefig(filename)
+    filename = f"images/custom_bar_chart_{safe_name}.png"
+    filepath = os.path.join(os.path.dirname(__file__), filename)
+    plt.savefig(filepath)
     plt.close()
     
     return {"status": "success", "message": f"Custom bar chart saved successfully as {filename}", "file_path": filename}
+
+def generate_generic_pie_chart(title: str, data: Any) -> Dict[str, str]:
+    """
+    Generates and saves a pie chart from generic key-value data.
+    Accepts data either as a dict {"Cat1": 10} or a list of dicts [{"label": "Cat1", "value": 10}].
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return {"error": "matplotlib is not installed."}
+        
+    if not data:
+        return {"error": "No data provided to plot."}
+        
+    if isinstance(data, dict):
+        categories = list(data.keys())
+        values = list(data.values())
+    elif isinstance(data, list):
+        categories = [str(item.get("label", f"Item {i}")) for i, item in enumerate(data)]
+        values = [float(item.get("value", 0)) for item in data]
+    elif isinstance(data, str):
+        try:
+            import json
+            parsed = json.loads(data)
+            if isinstance(parsed, dict):
+                categories = list(parsed.keys())
+                values = list(parsed.values())
+            elif isinstance(parsed, list):
+                categories = [str(item.get("label", f"Item {i}")) for i, item in enumerate(parsed)]
+                values = [float(item.get("value", 0)) for item in parsed]
+            else:
+                return {"error": "JSON string must be a dict or list of dicts."}
+        except:
+            return {"error": "Could not parse data string."}
+    else:
+        return {"error": "Unsupported data format."}
+    
+    try:
+        values = [float(v) for v in values]
+    except ValueError:
+        return {"error": "All data values must be numerical."}
+        
+    # Filter out zero values and their categories
+    filtered_cats = []
+    filtered_vals = []
+    for cat, val in zip(categories, values):
+        if val > 0:
+            filtered_cats.append(cat)
+            filtered_vals.append(val)
+            
+    if not filtered_vals:
+        return {"error": "No non-zero data to plot."}
+        
+    plt.figure(figsize=(8, 8))
+    
+    def r2l(text):
+        if not text: return ""
+        return str(text)[::-1] if any("\u0590" <= c <= "\u05EA" for c in str(text)) else str(text)
+        
+    display_categories = [r2l(cat) for cat in filtered_cats]
+    
+    plt.pie(filtered_vals, labels=display_categories, autopct='%1.1f%%', startangle=140)
+    plt.title(r2l(title))
+    
+    safe_name = str(title).replace(' ', '_').replace('"', '').replace("'", "").replace("/", "")
+    filename = f"images/custom_pie_chart_{safe_name}.png"
+    filepath = os.path.join(os.path.dirname(__file__), filename)
+    plt.savefig(filepath)
+    plt.close()
+    
+    return {"status": "success", "message": f"Custom pie chart saved successfully as {filename}", "file_path": filename}
 
 
 def calculate(expression: str) -> Dict[str, Any]:
