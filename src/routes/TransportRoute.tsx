@@ -21,6 +21,7 @@ import {
   validateVehicleNumber,
 } from "../domain/validation";
 import { useRelocation } from "../state/relocation";
+import { PackingNumberScanner } from "../components/PackingNumberScanner";
 
 export function TransportRoute() {
   const navigate = useNavigate();
@@ -31,8 +32,12 @@ export function TransportRoute() {
   const [vehicleDetails, setVehicleDetails] = useState("");
   const [movingType, setMovingType] = useState(MovingType.TRACK);
   const [selectedUnitIds, setSelectedUnitIds] = useState<number[]>([]);
+  const [packingSearch, setPackingSearch] = useState("");
   const [validationMessage, setValidationMessage] = useState("");
   const sealedUnits = getTransportableUnits(units, rooms);
+  const filteredUnits = sealedUnits.filter((unit) =>
+    String(unit.packing_id).includes(packingSearch.trim()),
+  );
   const isOtherVehicle = movingType === MovingType.CAR;
   const isVehicleValid = isOtherVehicle
     ? validateVehicleDetails(vehicleDetails)
@@ -43,6 +48,13 @@ export function TransportRoute() {
       current.includes(unitId)
         ? current.filter((candidate) => candidate !== unitId)
         : [...current, unitId],
+    );
+  };
+
+  const selectScannedUnit = (unitId: number) => {
+    setPackingSearch(String(unitId));
+    setSelectedUnitIds((current) =>
+      current.includes(unitId) ? current : [...current, unitId],
     );
   };
 
@@ -179,11 +191,31 @@ export function TransportRoute() {
               <ClipboardList aria-hidden="true" size={20} />
               <h2>טעינת אריזות</h2>
             </div>
+            <div className="packing-search-row">
+              <label className="select-label">
+                חיפוש לפי מספר אריזה
+                <input
+                  inputMode="numeric"
+                  value={packingSearch}
+                  onChange={(event) =>
+                    setPackingSearch(event.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="לדוגמה: 123"
+                />
+              </label>
+              <PackingNumberScanner
+                availablePackingIds={sealedUnits.map((unit) => unit.packing_id)}
+                onDetected={selectScannedUnit}
+              />
+            </div>
             <div className="option-group">
               {sealedUnits.length === 0 ? (
                 <p className="empty-state">אין אריזות סגורות זמינות.</p>
               ) : null}
-              {sealedUnits.map((unit) => (
+              {sealedUnits.length > 0 && filteredUnits.length === 0 ? (
+                <p className="empty-state">לא נמצאו אריזות התואמות לחיפוש.</p>
+              ) : null}
+              {filteredUnits.map((unit) => (
                 <label className="check-row" key={unit.packing_id}>
                   <input
                     type="checkbox"
@@ -208,4 +240,3 @@ export function TransportRoute() {
     </MobileShell>
   );
 }
-

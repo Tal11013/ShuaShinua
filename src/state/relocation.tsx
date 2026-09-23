@@ -19,6 +19,7 @@ import {
   type PackingUnit,
   type Room,
 } from "../../types";
+import { apiUrl } from "../lib/api";
 
 const USER_STORAGE_KEY = "relocation-user-id";
 
@@ -139,7 +140,7 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
 
   const api = useCallback(
     (path: string, init: RequestInit = {}) =>
-      fetch(path, {
+      fetch(apiUrl(path), {
         ...init,
         headers: {
           "content-type": "application/json",
@@ -206,7 +207,7 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const response = await fetch("/api/login", {
+      const response = await fetch(apiUrl("/api/login"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ identity_num: identityNum }),

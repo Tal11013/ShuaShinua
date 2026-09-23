@@ -564,6 +564,74 @@ code {
   gap: 12px;
 }
 
+.packing-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: end;
+  gap: 10px;
+}
+
+.packing-camera-button {
+  min-height: 46px;
+  border: 1px solid var(--primary);
+  border-radius: 12px;
+  background: var(--primary-soft);
+}
+
+.packing-camera-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.packing-scanner {
+  display: grid;
+  gap: 14px;
+}
+
+.packing-scanner > p:first-child,
+.packing-scanner-status {
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.packing-camera-preview {
+  position: relative;
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--foreground);
+}
+
+.packing-camera-preview video {
+  display: block;
+  width: 100%;
+  min-height: 240px;
+  max-height: 52vh;
+  object-fit: cover;
+}
+
+.packing-camera-frame {
+  position: absolute;
+  inset: 30% 10%;
+  display: grid;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 0 0 999px rgb(0 0 0 / 0.28);
+  pointer-events: none;
+}
+
+.packing-camera-loading {
+  position: absolute;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .field-grid label,
 .select-label,
 .org-selector label {

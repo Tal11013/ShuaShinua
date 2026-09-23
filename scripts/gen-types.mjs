@@ -21,10 +21,14 @@ const target = local ? ["--local"] : ["--project-id", projectId];
 const result = spawnSync(
   "supabase",
   ["gen", "types", "typescript", ...target, "--schema", "public,moving_south_operation"],
-  { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
+  // On Windows the CLI is a .cmd shim, which can only be launched through a shell.
+  { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], shell: process.platform === "win32" },
 );
 
-if (result.status !== 0 || !result.stdout.trim()) {
+if (result.status !== 0 || !result.stdout?.trim()) {
+  if (result.error) console.error(result.error.message);
+  // The CLI reports some errors (e.g. missing login) on stdout.
+  if (result.stdout?.trim()) console.error(result.stdout.trim());
   console.error("Type generation failed; types/supabase.ts left unchanged.");
   process.exit(result.status || 1);
 }
