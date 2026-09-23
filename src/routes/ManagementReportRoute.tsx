@@ -1,10 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { FileDown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { RoomStatus, UserRole } from "../../types";
 import { ChatFab } from "../components/ChatFab";
+import {
+  ManagementReportPrintView,
+  type PrintGroupBar,
+  type PrintStatusSlice,
+  type PrintTableRow,
+} from "../components/ManagementReportPrintView";
 import { MobileShell } from "../components/MobileShell";
 import { getGroupLabel } from "../domain/display";
-import type { GroupReportRow } from "../domain/report";
+import type { GroupMoveStatus, GroupReportRow } from "../domain/report";
+import { exportElementToPdf } from "../lib/exportPdf";
 import { useRelocation } from "../state/relocation";
 
 const statusLabel = {
@@ -44,6 +52,39 @@ type GroupProgressRow = {
   transitionPct: number;
   openPct: number;
 };
+
+// Literal hex, not var(--x): the PDF export renders through html2canvas,
+// whose CSS-custom-property support is less reliable than its support for
+// plain color values.
+const STATUS_HEX: Record<RoomStatusKey, string> = {
+  closed: "#02985f",
+  transition: "#da950b",
+  open: "#db2a3d",
+};
+
+const STATUS_ROW_HEX: Record<GroupMoveStatus, string> = {
+  MOVED: "#02985f",
+  MOVING: "#da950b",
+  NOT_MOVED: "#db2a3d",
+};
+
+function buildGroupSegments(
+  row: GroupProgressRow,
+  colors: Record<RoomStatusKey, string>,
+) {
+  return roomStatusMeta
+    .map((meta) => ({
+      key: meta.key,
+      color: colors[meta.key],
+      pct:
+        meta.key === "closed"
+          ? row.closedPct
+          : meta.key === "transition"
+            ? row.transitionPct
+            : row.openPct,
+    }))
+    .filter((segment) => segment.pct > 0);
+}
 
 function DonutTooltip({
   active,
@@ -149,6 +190,88 @@ export function ManagementReportRoute() {
     .filter((group) => group.total > 0)
     .sort((a, b) => b.progress - a.progress || b.total - a.total);
 
+  const printRef = useRef<HTMLDivElement>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const printStatusSlices: PrintStatusSlice[] = statusData.map((entry) => ({
+    key: entry.key,
+    label: entry.label,
+    value: entry.value,
+    color: STATUS_HEX[entry.key],
+  }));
+
+  const printGroupBars: PrintGroupBar[] = groupProgress.map((row) => ({
+    id: row.id,
+    label: row.label,
+    total: row.total,
+    closed: row.closed,
+    transition: row.transition,
+    open: row.open,
+    progress: row.progress,
+    segments: buildGroupSegments(row, STATUS_HEX),
+  }));
+
+  const printTableRows: PrintTableRow[] = rows.map((row) => ({
+    id: row.group_id,
+    label: row.label,
+    unitId: row.unit_id,
+    statusLabel: statusLabel[row.status],
+    statusColor: STATUS_ROW_HEX[row.status],
+    totalRooms: row.totalRooms,
+    movingUnits: row.movingUnits,
+    movedUnits: row.movedUnits,
+  }));
+
+  const groupsFullyDone = groupProgress.filter((group) => group.progress === 1).length;
+  const groupsNotStarted = groupProgress.filter(
+    (group) => group.closed === 0 && group.transition === 0,
+  ).length;
+  const topGroup = groupProgress[0];
+  const bottomGroup = groupProgress[groupProgress.length - 1];
+
+  const insights: string[] = [
+    totalVisibleRooms
+      ? `${completionPct}% מהחדרים (${closedCount} מתוך ${totalVisibleRooms}) הושלמו.`
+      : "אין נתוני חדרים להצגה עבור הסינון הנוכחי.",
+  ];
+
+  if (groupProgress.length > 0) {
+    insights.push(
+      `${groupsFullyDone} מתוך ${groupProgress.length} קבוצות סיימו את התהליך במלואו.`,
+    );
+
+    if (groupsNotStarted > 0) {
+      insights.push(`${groupsNotStarted} קבוצות טרם החלו בתהליך המעבר.`);
+    }
+
+    if (topGroup && bottomGroup && topGroup.id !== bottomGroup.id) {
+      insights.push(
+        `הקבוצה המובילה בהתקדמות: ${topGroup.label} (${Math.round(topGroup.progress * 100)}%) · ` +
+          `הקבוצה המאחרת ביותר: ${bottomGroup.label} (${Math.round(bottomGroup.progress * 100)}%).`,
+      );
+    }
+  }
+
+  const handleExportPdf = async () => {
+    if (!printRef.current || exportingPdf) {
+      return;
+    }
+
+    setExportingPdf(true);
+    setExportError(null);
+
+    try {
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      await exportElementToPdf(printRef.current, `management-report-${dateStamp}.pdf`);
+    } catch (caught) {
+      console.error("PDF export failed", caught);
+      setExportError("אירעה שגיאה בייצוא ה-PDF. יש לנסות שוב.");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   useEffect(() => {
     if (!currentUser) {
       return;
@@ -213,8 +336,21 @@ export function ManagementReportRoute() {
         </section>
       ) : null}
 
+      <div className="report-toolbar">
+        <button
+          type="button"
+          className="export-pdf-button"
+          onClick={handleExportPdf}
+          disabled={exportingPdf || loading}
+        >
+          <FileDown aria-hidden="true" size={16} />
+          {exportingPdf ? "מייצא PDF..." : "ייצוא ל-PDF"}
+        </button>
+      </div>
+
       {loading ? <p className="state-message">טוען נתונים...</p> : null}
       {error ? <p className="state-message error">{error}</p> : null}
+      {exportError ? <p className="state-message error">{exportError}</p> : null}
 
       <section className="kpi-grid" aria-label="סיכום חדרים">
         <article className="kpi card-soft">
@@ -307,18 +443,11 @@ export function ManagementReportRoute() {
           <>
             <div className="bar-chart-wrap">
               {groupProgress.map((row) => {
-                const segments = roomStatusMeta
-                  .map((meta) => ({
-                    key: meta.key,
-                    color: meta.color,
-                    pct:
-                      meta.key === "closed"
-                        ? row.closedPct
-                        : meta.key === "transition"
-                          ? row.transitionPct
-                          : row.openPct,
-                  }))
-                  .filter((segment) => segment.pct > 0);
+                const segments = buildGroupSegments(row, {
+                  closed: "var(--success)",
+                  transition: "var(--warning)",
+                  open: "var(--destructive)",
+                });
 
                 return (
                   <div className="bar-row" key={row.id}>
@@ -403,6 +532,22 @@ export function ManagementReportRoute() {
           </article>
         ))}
       </section>
+
+      <div className="pdf-doc-host" aria-hidden="true">
+        <ManagementReportPrintView
+          ref={printRef}
+          generatedAt={new Date()}
+          unitLabel={unitId || "כל היחידות"}
+          operatorName={currentUser?.name ?? null}
+          totalRooms={totalVisibleRooms}
+          statusSlices={printStatusSlices}
+          completionPct={completionPct}
+          insights={insights}
+          groupBars={printGroupBars}
+          tableRows={printTableRows}
+        />
+      </div>
+
       <ChatFab />
     </MobileShell>
   );

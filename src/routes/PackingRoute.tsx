@@ -16,6 +16,7 @@ import {
 import { boxTypeLabels, getRoomLabel } from "../domain/display";
 import { searchItemCatalogue } from "../domain/validation";
 import { useRelocation } from "../state/relocation";
+import { useToast } from "../state/toast";
 
 function sanitizeQuantity(value: string) {
   if (!/^\d*$/.test(value)) {
@@ -27,6 +28,7 @@ function sanitizeQuantity(value: string) {
 
 export function PackingRoute() {
   const navigate = useNavigate();
+  const { showSuccessToast } = useToast();
   const {
     createPacking,
     error,
@@ -165,6 +167,12 @@ export function PackingRoute() {
 
     if (created) {
       navigate({ to: "/processes" });
+      showSuccessToast({
+        title: "האריזה נוצרה בהצלחה",
+        message: "אריזה חדשה נפתחה במערכת וממתינה להובלה.",
+        idLabel: "מספר אריזה",
+        idValue: created.packing_id,
+      });
     }
   };
 

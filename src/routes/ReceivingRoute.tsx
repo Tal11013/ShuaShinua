@@ -10,9 +10,11 @@ import {
 import { getPackingLabel, movingTypeLabels } from "../domain/display";
 import { getReceivableTransports, getReceivableUnits } from "../domain/flows";
 import { useRelocation } from "../state/relocation";
+import { useToast } from "../state/toast";
 
 export function ReceivingRoute() {
   const navigate = useNavigate();
+  const { showSuccessToast } = useToast();
   const {
     error,
     loading,
@@ -59,6 +61,12 @@ export function ReceivingRoute() {
 
     if (received) {
       navigate({ to: "/processes" });
+      showSuccessToast({
+        title: "קבלת הציוד אושרה בהצלחה",
+        message: "האריזות שנבחרו נקלטו במיקום היעד.",
+        idLabel: "מספר הובלה",
+        idValue: transportId,
+      });
     }
   };
 

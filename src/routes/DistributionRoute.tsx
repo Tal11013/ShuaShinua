@@ -16,9 +16,11 @@ import {
 } from "../domain/display";
 import { getDistributableUnits } from "../domain/flows";
 import { useRelocation } from "../state/relocation";
+import { useToast } from "../state/toast";
 
 export function DistributionRoute() {
   const navigate = useNavigate();
+  const { showSuccessToast } = useToast();
   const {
     distributeUnit,
     error,
@@ -63,6 +65,12 @@ export function DistributionRoute() {
 
     if (distributed) {
       navigate({ to: "/processes" });
+      showSuccessToast({
+        title: "הפיזור אושר בהצלחה",
+        message: "הפריטים שנבחרו חולקו מהאריזה.",
+        idLabel: "מספר אריזה",
+        idValue: unitId,
+      });
     }
   };
 
