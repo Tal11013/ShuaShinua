@@ -52,7 +52,6 @@ export function OrgSelector({
 
   return (
     <section className="org-selector" aria-label={title}>
-      <h3>{title}</h3>
       <label>
         יחידה
         <select

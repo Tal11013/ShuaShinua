@@ -376,10 +376,13 @@ relocationRouter.post("/packing", authenticate, async (request: AuthedRequest, r
   }
 
   const catalogue = await loadCatalogue();
+  // Personal boxes carry no tracked items — skip item validation for that type.
+  const requiresItems = boxType !== BoxType.PERSONAL_BOX;
   if (
-    !Array.isArray(items) ||
-    items.length === 0 ||
-    !validateCatalogueQuantities(items, catalogue)
+    requiresItems &&
+    (!Array.isArray(items) ||
+      items.length === 0 ||
+      !validateCatalogueQuantities(items, catalogue))
   ) {
     throw new HttpError(400, "יש לבחור פריטים תקינים עם כמות גדולה מאפס.");
   }
