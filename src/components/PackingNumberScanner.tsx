@@ -2,9 +2,39 @@ import { Camera, ScanLine } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GhostButton, PrimaryButton } from "./MobileShell";
 import { Sheet } from "./Sheet";
-import { apiUrl } from "../lib/api";
 
 type ScannerStatus = "requesting" | "ready" | "recognizing";
+
+type PaddleOcrClient = Awaited<
+  ReturnType<(typeof import("@paddleocr/paddleocr-js"))["PaddleOCR"]["create"]>
+>;
+
+let paddleOcrPromise: Promise<PaddleOcrClient> | null = null;
+
+function getPaddleOcr() {
+  if (!paddleOcrPromise) {
+    paddleOcrPromise = import("@paddleocr/paddleocr-js")
+      .then(({ PaddleOCR }) =>
+        PaddleOCR.create({
+          textDetectionModelName: "PP-OCRv5_mobile_det",
+          textRecognitionModelName: "PP-OCRv5_mobile_rec",
+          worker: true,
+          ortOptions: {
+            backend: "wasm",
+            wasmPaths: "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/",
+            numThreads: 1,
+            simd: true,
+          },
+        }),
+      )
+      .catch((error) => {
+        paddleOcrPromise = null;
+        throw error;
+      });
+  }
+
+  return paddleOcrPromise;
+}
 
 function stopStream(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop());
@@ -67,6 +97,11 @@ export function PackingNumberScanner({
       streamRef.current = stream;
       setStatus("ready");
 
+      // Begin the model download while the user positions the number in frame.
+      void getPaddleOcr().catch((error) => {
+        console.error("PaddleOCR.js initialization failed:", error);
+      });
+
       requestAnimationFrame(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -128,23 +163,13 @@ export function PackingNumberScanner({
         }, "image/jpeg", 0.92);
       });
 
-      const response = await fetch(apiUrl("/api/ocr/scan-number"), {
-        method: "POST",
-        headers: { "Content-Type": "image/jpeg" },
-        body: image,
-      });
-
-      const result = (await response.json()) as {
-        error?: string;
-        message?: string;
-        lines?: string[];
-      };
-
-      if (!response.ok) {
-        throw new Error(result.message || result.error || "OCR failed");
-      }
-
-      const detectedText = (result.lines ?? []).join(" ").replace(/\s+/g, " ").trim();
+      const ocr = await getPaddleOcr();
+      const [result] = await ocr.predict(image, { textRecScoreThresh: 0.35 });
+      const detectedText = (result?.items ?? [])
+        .map((item) => item.text)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
       const packingId = findPackingId(detectedText, availablePackingIds);
 
       if (packingId === undefined) {
@@ -160,12 +185,8 @@ export function PackingNumberScanner({
       onDetected(packingId);
       closeScanner();
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "";
-      setError(
-        message.includes("port 8001")
-          ? "שירות הזיהוי המקומי אינו פועל. יש להפעיל את שרת ה-Python ולנסות שוב."
-          : "זיהוי המספר נכשל. יש לנסות שוב כאשר המספר מואר וברור.",
-      );
+      console.error("PaddleOCR.js recognition failed:", caught);
+      setError("זיהוי המספר נכשל. יש לבדוק את החיבור לאינטרנט ולנסות שוב כשהמספר מואר וברור.");
       setStatus("ready");
     }
   };

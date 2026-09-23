@@ -1,7 +1,6 @@
 # Dependencies
 node_modules/
 .venv/
-ocr/samples/
 __pycache__/
 *.pyc
 

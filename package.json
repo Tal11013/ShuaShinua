@@ -32,6 +32,7 @@
   "homepage": "https://github.com/Tal11013/ShuaShinua#readme",
   "description": "",
   "dependencies": {
+    "@paddleocr/paddleocr-js": "^0.4.2",
     "@supabase/supabase-js": "^2.117.0",
     "@tanstack/react-router": "^1.170.38",
     "cors": "^2.8.6",
@@ -40,7 +41,6 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "recharts": "^3.10.1",
-    "tesseract.js": "^7.0.0",
     "tsx": "^4.23.15"
   },
   "devDependencies": {
