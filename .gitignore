@@ -1,5 +1,9 @@
 # Dependencies
 node_modules/
+.venv/
+ocr/samples/
+__pycache__/
+*.pyc
 
 # Build outputs
 dist/
@@ -28,4 +32,3 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
-
