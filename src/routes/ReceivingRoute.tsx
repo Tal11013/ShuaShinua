@@ -118,14 +118,13 @@ export function ReceivingRoute() {
                     setSelectedUnitIds([]);
                   }}
                 >
-                  <span>
-                    <strong>{movingTypeLabels[transport.moving_type]}</strong>
+                <span style={{ width: '100%' }}>
+                  <strong>{movingTypeLabels[transport.moving_type]}</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                     <small>{getVehicleDescription(transport)}</small>
-                    <code>
-                      #{transport.moving_id} ·{" "}
-                      {transport.moving_date.toLocaleString("he-IL")}
-                    </code>
-                  </span>
+                    <code>מספר הובלה: #{transport.moving_id}</code>
+                  </div>
+                </span>
                 </RowButton>
               ))}
             </div>

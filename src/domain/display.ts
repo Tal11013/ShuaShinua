@@ -24,7 +24,7 @@ export function getPackingLabel(unit: PackingUnit) {
 }
 
 export function getGroupLabel(group: IdfGroup) {
-  return group.contact_name ? `${group.id} · ${group.contact_name}` : `קבוצה ${group.id}`;
+  return group.contact_name ? `${group.id}` : `קבוצה ${group.id}`;
 }
 
 export function getRoomLabel(locations: Location[], room: Room | undefined) {
