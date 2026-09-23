@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from openai import OpenAI
 import tools
 
@@ -72,34 +73,28 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "get_branch_packing_summary",
-            "description": "Returns total items, packed items, missing items, and balmas count for a specific branch (ענף).",
+            "name": "get_database_schema",
+            "description": "Returns the PostgreSQL database schema (tables and columns) for the 'moving_south_operation' schema. Call this tool first if you need to know how to construct SQL queries.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "branch_name": {
-                        "type": "string",
-                        "description": "The exact name of the branch, e.g., 'ענף לוגיסטיקה'"
-                    }
-                },
-                "required": ["branch_name"]
+                "properties": {}
             }
         }
     },
     {
         "type": "function",
         "function": {
-            "name": "get_yechida_packing_summary",
-            "description": "Returns total items, packed items, missing items, and balmas count for a specific unit (יחידה).",
+            "name": "execute_sql_query",
+            "description": "Executes a custom SELECT query on the PostgreSQL database to fetch specific insights. Call get_database_schema first if you do not know the exact table and column names.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "yechida_name": {
+                    "query": {
                         "type": "string",
-                        "description": "The exact name of the unit, e.g., 'שחר' or 'מצפן'"
+                        "description": "A valid PostgreSQL SELECT query."
                     }
                 },
-                "required": ["yechida_name"]
+                "required": ["query"]
             }
         }
     },
@@ -107,7 +102,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "list_missing_items",
-            "description": "Returns a list of all items currently marked as MISSING, along with their location and team.",
+            "description": "Returns a list of all items currently marked as missing, along with their location and room details.",
             "parameters": {
                 "type": "object",
                 "properties": {}
@@ -118,35 +113,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "get_active_trucks",
-            "description": "Returns the status of all moving units (trucks).",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "generate_branch_packing_pie_chart",
-            "description": "Generates a pie chart image summarizing the packing status for a specific branch and saves it to disk.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "branch_name": {
-                        "type": "string",
-                        "description": "The exact name of the branch, e.g., 'ענף לוגיסטיקה'"
-                    }
-                },
-                "required": ["branch_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "generate_truck_status_bar_chart",
-            "description": "Generates a bar chart image showing the current status distribution of all moving trucks and saves it to disk.",
+            "description": "Returns the status of all transports (trucks).",
             "parameters": {
                 "type": "object",
                 "properties": {}
@@ -157,7 +124,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "generate_generic_bar_chart",
-            "description": "Generates a bar chart from any arbitrary data dictionary (categories vs numbers).",
+            "description": "Generates a bar chart from any arbitrary data dictionary (categories vs numbers) and saves it as an image.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -165,16 +132,8 @@ TOOLS_SCHEMA = [
                     "x_label": {"type": "string", "description": "X-axis label"},
                     "y_label": {"type": "string", "description": "Y-axis label"},
                     "data": {
-                        "type": "array",
-                        "description": "Array of data points to plot",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "label": {"type": "string", "description": "The category name"},
-                                "value": {"type": "number", "description": "The numerical value"}
-                            },
-                            "required": ["label", "value"]
-                        }
+                        "type": "string",
+                        "description": "A JSON string array of data points, e.g. '[{\"label\": \"Category A\", \"value\": 10}]' or a JSON object string '{\"A\": 10}'"
                     }
                 },
                 "required": ["title", "x_label", "y_label", "data"]
@@ -205,23 +164,6 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "execute_sql_query",
-            "description": "Executes a custom SELECT query on the SQLite database to fetch specific insights. Tables: items(catalog_id, description, price, room_id, item_status, is_balmas), rooms(room_id, location_id, group_id), locations(location_id, building, floor, room_number), idf_groups(id, yehida, anaf, mador, tzevet).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "A valid SQLite SELECT query."
-                    }
-                },
-                "required": ["query"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "calculate",
             "description": "Evaluates a mathematical expression (e.g., '100 / 3 * 5'). Use this whenever you need to compute numbers.",
             "parameters": {
@@ -235,107 +177,18 @@ TOOLS_SCHEMA = [
                 "required": ["expression"]
             }
         }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "query_items",
-            "description": "Queries items from the database. Use this to see all equipment, with optional filters.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "team_name": {
-                        "type": "string",
-                        "description": "Filter by team name (e.g., 'צוות 1')"
-                    },
-                    "room_number": {
-                        "type": "integer",
-                        "description": "Filter by room number"
-                    },
-                    "status": {
-                        "type": "string",
-                        "description": "Filter by item status (e.g., 'PACKED', 'MISSING', 'NOT_PACKED')"
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum number of items to return (default 50)"
-                    }
-                }
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_team_equipment_summary",
-            "description": "Returns total items, packed items, and missing items for a specific team (צוות).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "team_name": {
-                        "type": "string",
-                        "description": "The exact name of the team, e.g., 'צוות 1'"
-                    }
-                },
-                "required": ["team_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_room_details",
-            "description": "Returns details about a specific room including its status, the team assigned, and capacity.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "building": {
-                        "type": "integer",
-                        "description": "The building number"
-                    },
-                    "room_number": {
-                        "type": "integer",
-                        "description": "The room number"
-                    }
-                },
-                "required": ["building", "room_number"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_expensive_unpacked_items",
-            "description": "Returns a list of unpacked items that cost more than a specified minimum price.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "min_price": {
-                        "type": "integer",
-                        "description": "The minimum price of the items (default is 1000)"
-                    }
-                }
-            }
-        }
     }
 ]
 
 # Map tool names to the actual python functions in tools.py
 AVAILABLE_FUNCTIONS = {
-    "get_branch_packing_summary": tools.get_branch_packing_summary,
-    "get_yechida_packing_summary": tools.get_yechida_packing_summary,
+    "get_database_schema": tools.get_database_schema,
+    "execute_sql_query": tools.execute_sql_query,
     "list_missing_items": tools.list_missing_items,
     "get_active_trucks": tools.get_active_trucks,
-    "generate_branch_packing_pie_chart": tools.generate_branch_packing_pie_chart,
-    "generate_truck_status_bar_chart": tools.generate_truck_status_bar_chart,
     "generate_generic_bar_chart": tools.generate_generic_bar_chart,
     "generate_generic_pie_chart": tools.generate_generic_pie_chart,
-    "calculate": tools.calculate,
-    "query_items": tools.query_items,
-    "get_team_equipment_summary": tools.get_team_equipment_summary,
-    "get_room_details": tools.get_room_details,
-    "get_expensive_unpacked_items": tools.get_expensive_unpacked_items,
-    "execute_sql_query": tools.execute_sql_query
+    "calculate": tools.calculate
 }
 
 
@@ -365,9 +218,9 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
     is_logfare = model.startswith("logfare/")
     
     if is_local or is_colab:
-        sys_content = "You are a helpful logistics AI assistant managing a move. You answer strictly based on the provided tool data. ALWAYS answer in English."
+        sys_content = "You are a helpful logistics AI assistant managing a move. You have access to PostgreSQL database tools. ALWAYS answer in English."
     else:
-        sys_content = "You are a helpful logistics AI assistant managing a move. You answer strictly based on the provided tool data. ALWAYS answer in Hebrew."
+        sys_content = "You are a helpful logistics AI assistant managing a move. You have access to PostgreSQL database tools. ALWAYS answer in Hebrew."
 
     if messages is None:
         messages = [{"role": "system", "content": sys_content}]
@@ -424,45 +277,69 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
         last_error = None
         
         for current_model in models_to_try:
-            try:
-                raw_response = active_client.chat.completions.with_raw_response.create(
-                    model=current_model,
-                    messages=messages,
-                    tools=TOOLS_SCHEMA,
-                    tool_choice="auto"
-                )
-                
-                headers = raw_response.headers
-                
-                # HTTPX headers are case-insensitive, but just in case Groq uses a different casing:
-                for k, v in headers.items():
-                    k_lower = k.lower()
-                    if "remaining-requests" in k_lower:
-                        rate_limit_info["requests_remaining"] = v
-                    elif "remaining-tokens" in k_lower:
-                        rate_limit_info["tokens_remaining"] = v
-                    elif "reset-tokens" in k_lower:
-                        rate_limit_info["reset_time"] = v
+            retry_count = 0
+            max_retries = 3
+            backoff = 3  # Start with a 3 second delay
+            
+            while retry_count <= max_retries:
+                try:
+                    start_time = time.time()
+                    raw_response = active_client.chat.completions.with_raw_response.create(
+                        model=current_model,
+                        messages=messages,
+                        tools=TOOLS_SCHEMA,
+                        tool_choice="auto"
+                    )
+                    latency = time.time() - start_time
+                    print(f"  [API Latency: {latency:.2f}s]")
                     
-                response = raw_response.parse()
-                success = True
-                
-                # If successful, use this model for the rest of the turns
-                if is_local:
-                    model = f"local/{current_model}"
-                else:
-                    model = current_model 
+                    headers = raw_response.headers
                     
-                break # Break out of the fallback loop!
-                
-            except Exception as e:
-                last_error = e
-                # If it's a global account rate limit, don't bother with fallbacks since they all share the limit
-                if "tokens per day (TPD)" in str(e):
-                    print(f"Model {current_model} hit a global TPD rate limit. Stopping fallbacks.")
+                    # HTTPX headers are case-insensitive, but just in case Groq uses a different casing:
+                    for k, v in headers.items():
+                        k_lower = k.lower()
+                        if "remaining-requests" in k_lower:
+                            rate_limit_info["requests_remaining"] = v
+                        elif "remaining-tokens" in k_lower:
+                            rate_limit_info["tokens_remaining"] = v
+                        elif "reset-tokens" in k_lower:
+                            rate_limit_info["reset_time"] = v
+                        
+                    response = raw_response.parse()
+                    success = True
+                    
+                    # If successful, use this model for the rest of the turns
+                    if is_local:
+                        model = f"local/{current_model}"
+                    else:
+                        model = current_model 
+                        
+                    break # Break out of the fallback loop!
+                    
+                except Exception as e:
+                    last_error = e
+                    # Handle Rate Limits Robustly
+                    if "429" in str(e) or "rate limit" in str(e).lower():
+                        if retry_count < max_retries:
+                            print(f"  [Rate limit (429) hit. Waiting {backoff}s before retry {retry_count+1}/{max_retries}...]")
+                            time.sleep(backoff)
+                            backoff *= 2  # Exponential backoff
+                            retry_count += 1
+                            continue
+                        else:
+                            print(f"Model {current_model} failed after {max_retries} retries due to rate limit.")
+                            break
+                            
+                    # If it's a global account rate limit, don't bother with fallbacks since they all share the limit
+                    if "tokens per day (TPD)" in str(e):
+                        print(f"Model {current_model} hit a global TPD rate limit. Stopping fallbacks.")
+                        break
+                        
+                    print(f"Model {current_model} failed: {e}. Trying next model...")
                     break
-                print(f"Model {current_model} failed: {e}. Trying next model...")
-                continue
+                    
+            if success:
+                break # Break out of models loop if we succeeded
                 
         if not success:
             error_msg = f"Error: All models failed. Last error: {last_error}"
@@ -531,9 +408,7 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
                     function_args = json.loads(tool_call.function.arguments)
                     print(f"-> Calling tool: {function_name} with args: {function_args}")
                     
-                    if function_name in ["get_branch_packing_summary", "generate_branch_packing_pie_chart"]:
-                        function_response = function_to_call(branch_name=function_args.get("branch_name"))
-                    elif function_name == "generate_generic_bar_chart":
+                    if function_name == "generate_generic_bar_chart":
                         function_response = function_to_call(
                             title=function_args.get("title"),
                             x_label=function_args.get("x_label") or function_args.get("xlabel"),
@@ -542,20 +417,6 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
                         )
                     elif function_name == "calculate":
                         function_response = function_to_call(expression=function_args.get("expression"))
-                    elif function_name == "query_items":
-                        function_response = function_to_call(
-                            team_name=function_args.get("team_name"),
-                            room_number=function_args.get("room_number"),
-                            status=function_args.get("status"),
-                            limit=function_args.get("limit", 50)
-                        )
-                    elif function_name == "get_team_equipment_summary":
-                        function_response = function_to_call(team_name=function_args.get("team_name"))
-                    elif function_name == "get_room_details":
-                        function_response = function_to_call(building=function_args.get("building"), room_number=function_args.get("room_number"))
-                    elif function_name == "get_expensive_unpacked_items":
-                        min_price = function_args.get("min_price", 1000)
-                        function_response = function_to_call(min_price=min_price)
                     elif function_name == "generate_generic_pie_chart":
                         function_response = function_to_call(
                             title=function_args.get("title"),
@@ -605,7 +466,7 @@ if __name__ == "__main__":
     print("\nClient initialized. Type 'exit', 'quit', or 'צא' to stop.\n")
     
     chat_history = [
-        {"role": "system", "content": "You are a helpful logistics AI assistant managing a move. You answer strictly based on the provided tool data. ALWAYS answer in Hebrew."}
+        {"role": "system", "content": "You are a helpful logistics AI assistant managing a move. You have access to PostgreSQL database tools. ALWAYS answer in Hebrew."}
     ]
     
     while True:

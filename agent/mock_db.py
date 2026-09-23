@@ -183,34 +183,35 @@ def generate_mock_data(conn):
     
     # 1. Generate Locations
     locations = []
-    for i in range(1, 21):
+    for i in range(1, 31):
         loc = Location(location_id=i, building=random.randint(1, 3), floor=random.randint(1, 5), room_number=i*10)
         locations.append(loc)
         cursor.execute("INSERT INTO locations VALUES (?, ?, ?, ?)", 
                        (loc.location_id, loc.building, loc.floor, loc.room_number))
 
     # 2. Generate IDF Groups (Hierarchy)
-    yehida = "קרית התקשוב"
+    yechidas = ["שחר", "מצפן"]
     anafim = ["ענף לוגיסטיקה", "ענף פיתוח", "ענף מבצעים"]
     madorim_per_anaf = 2
     tzvatim_per_mador = 2
     
     idf_groups = []
-    for anaf in anafim:
-        for m in range(1, madorim_per_anaf + 1):
-            mador = f"מדור {m}"
-            for t in range(1, tzvatim_per_mador + 1):
-                tzevet = f"צוות {t}"
-                group = IdfGroup(יחידה=yehida, ענף=anaf, מדור=mador, צוות=tzevet)
-                idf_groups.append(group)
-                cursor.execute("INSERT INTO idf_groups VALUES (?, ?, ?, ?, ?)",
-                               (str(group.id), group.yehida, group.anaf, group.mador, group.tzevet))
+    for yechida in yechidas:
+        for anaf in anafim:
+            for m in range(1, madorim_per_anaf + 1):
+                mador = f"מדור {m}"
+                for t in range(1, tzvatim_per_mador + 1):
+                    tzevet = f"צוות {t}"
+                    group = IdfGroup(יחידה=yechida, ענף=anaf, מדור=mador, צוות=tzevet)
+                    idf_groups.append(group)
+                    cursor.execute("INSERT INTO idf_groups VALUES (?, ?, ?, ?, ?)",
+                                   (str(group.id), group.yehida, group.anaf, group.mador, group.tzevet))
 
     # 3. Generate Rooms
     rooms = []
     for i, group in enumerate(idf_groups):
-        # Assign 1-2 rooms per team
-        for _ in range(random.randint(1, 2)):
+        # Assign 2-4 rooms per team
+        for _ in range(random.randint(2, 4)):
             loc = random.choice(locations)
             room = Room(
                 is_mapped=random.choice([True, False]),
@@ -226,7 +227,7 @@ def generate_mock_data(conn):
 
     # 4. Generate Moving Units
     moving_units = []
-    for _ in range(3):
+    for _ in range(10):
         mu = MovingUnit(
             moving_type=random.choice(list(MovingType)),
             moving_status=random.choice(list(MovingUnitStatus)),
@@ -238,7 +239,7 @@ def generate_mock_data(conn):
 
     # 5. Generate Packing Units
     packing_units = []
-    for _ in range(15):
+    for _ in range(50):
         mu = random.choice(moving_units) if random.random() > 0.3 else None
         pu = PackingUnit(
             box_type=random.choice(list(BoxType)),
@@ -251,8 +252,9 @@ def generate_mock_data(conn):
                         str(pu.moving_id) if pu.moving_id else None))
 
     # 6. Generate Items
-    item_descriptions = ["מחשב נייד", "מסך", "כיסא", "שולחן", "שרת", "מדפסת", "ארון", "ציוד קשר"]
-    for i in range(1, 101):
+    item_descriptions = ["מחשב נייד", "מסך", "כיסא", "שולחן", "שרת", "מדפסת", "ארון", "ציוד קשר", "מקרן", "לוח מחיק", "כבלים", "מקלדת", "עכבר"]
+    # Generate 500 items to ensure robust DB querying
+    for i in range(1, 501):
         room = random.choice(rooms)
         pu = random.choice(packing_units) if random.random() > 0.4 else None
         
@@ -262,7 +264,7 @@ def generate_mock_data(conn):
             pu = None  # Missing items aren't packed
             
         item = Item(
-            catalog_id=f"CAT-{1000+i}",
+            catalog_id=f"CAT-{10000+i}",
             description=random.choice(item_descriptions),
             price=random.randint(100, 5000),
             item_status=status,
@@ -275,7 +277,7 @@ def generate_mock_data(conn):
                         item.is_balmas, str(item.room_id), str(item.packing_id) if item.packing_id else None))
 
     conn.commit()
-    print(f"Successfully generated mock data with {len(idf_groups)} teams, {len(rooms)} rooms, {len(packing_units)} packing units, {len(moving_units)} moving units, and 100 items.")
+    print(f"Successfully generated mock data with {len(idf_groups)} teams, {len(rooms)} rooms, {len(packing_units)} packing units, {len(moving_units)} moving units, and 500 items.")
 
 if __name__ == "__main__":
     conn = setup_database()
