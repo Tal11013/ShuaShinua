@@ -19,5 +19,5 @@
     "exactOptionalPropertyTypes": true,
     "types": ["node"]
   },
-  "include": ["src", "server", "types", "vite.config.ts"]
+  "include": ["src", "server", "types", "tests", "vite.config.ts"]
 }

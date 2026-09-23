@@ -6,6 +6,7 @@ dist/
 build/
 out/
 coverage/
+.vite/
 
 # Environment files
 .env

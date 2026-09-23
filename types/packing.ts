@@ -1,6 +1,5 @@
-import type { UUID } from "./common.js";
 import type { Item } from "./item.js";
-
+import type { Room } from "./room.js";
 
 export enum BoxType {
   PROF_BOX = "PROF_BOX",
@@ -19,8 +18,11 @@ export enum PackingUnitStatus {
 }
 
 export interface PackingUnit {
-  packing_id: UUID;
+  packing_id: number;
   box_type: BoxType;
   packing_status: PackingUnitStatus;
+  source_room_id: Room["room_id"];
+  destination_room_id: Room["room_id"];
+  transport_id: number | null;
   items: Item[];
 }

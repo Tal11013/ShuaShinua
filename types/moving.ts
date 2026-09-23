@@ -1,5 +1,3 @@
-import type { UUID } from "./common.js";
-
 export enum MovingType {
   TRACK = "TRACK",
   CAR = "CAR",
@@ -14,8 +12,10 @@ export enum MovingUnitStatus {
 }
 
 export interface MovingUnit {
-  moving_id: UUID;
+  moving_id: number;
   moving_type: MovingType;
   moving_status: MovingUnitStatus;
   moving_date: Date;
+  vehicle_number: string | null;
+  vehicle_details: string | null;
 }

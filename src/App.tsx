@@ -1,45 +1,38 @@
-import { useEffect, useState } from "react";
+import { RouterProvider } from "@tanstack/react-router";
+import { RelocationProvider } from "./state/relocation";
+import { router } from "./router";
+import { LoginRoute } from "./routes/LoginRoute";
+import { useRelocation } from "./state/relocation";
 import Chat from "./components/Chat";
 
-type HealthResponse = {
-  status: string;
-  service: string;
-};
+function AuthGate() {
+  const { currentUser, loading } = useRelocation();
 
-export function App() {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
+  if (loading && !currentUser) {
+    return <main className="login-shell">טוען...</main>;
+  }
 
-  useEffect(() => {
-    fetch("/api/health")
-      .then((response) => response.json() as Promise<HealthResponse>)
-      .then(setHealth)
-      .catch(() => setHealth({ status: "error", service: "API unavailable" }));
-  }, []);
+  if (!currentUser) {
+    return <LoginRoute />;
+  }
 
   return (
-    <main className="app">
-      <section className="hero">
-        <p className="eyebrow">React + TypeScript + Express + Python Agent</p>
-        <h1>ShuaShinua</h1>
-        <p className="summary">
-          A full-stack logistics management system powered by an LLM agent.
-        </p>
-      </section>
-
-      <section className="panel" style={{ marginBottom: "2rem" }}>
-        <div>
-          <h2>API Status</h2>
-          <p className={health?.status === "ok" ? "status ok" : "status"}>
-            {health ? `${health.service}: ${health.status}` : "Checking..."}
-          </p>
-        </div>
-      </section>
-
-      <section className="chat-section">
+    <>
+      <RouterProvider router={router} />
+      
+      {/* Injected Chat Agent for testing after login */}
+      <section className="chat-section" style={{ margin: "2rem", borderTop: "2px solid #ccc", paddingTop: "2rem" }}>
         <h2 style={{ textAlign: "center", marginBottom: "1rem" }}>Logistics Agent</h2>
         <Chat />
       </section>
-    </main>
+    </>
   );
 }
 
+export function App() {
+  return (
+    <RelocationProvider>
+      <AuthGate />
+    </RelocationProvider>
+  );
+}

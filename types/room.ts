@@ -1,6 +1,4 @@
-import type { UUID } from "./common.js";
-import type { Item } from "./item.js";
-
+// Stored in rooms.move_status (rooms.status belongs to the mapping process).
 export enum RoomStatus {
   WAITING_FOR_STATUS = "WAITING_FOR_STATUS",
   PACKING_PROCESS = "PACKING_PROCESS",
@@ -9,32 +7,22 @@ export enum RoomStatus {
 }
 
 export interface Location {
-  location_id: UUID;
-  building: number;
-  floor: number;
-  room_number: number;
+  location_id: number;
+  description: string;
 }
 
+// A row of groups. Group ids are a group code followed by a 3-digit running
+// number (1234001 -> code "1234"); the code identifies the unit.
 export interface IdfGroup {
-  id: UUID;
-  unit: string;
-  branch: string;
-  section: string;
-  team: string;
+  id: number;
+  unit_id: string;
+  contact_name: string | null;
 }
 
 export interface Room {
-  room_id: UUID;
-  is_mapped: boolean;
-  people_size: number;
-  items: Item[];
-  location: Location["location_id"];
+  room_id: number;
   group_id: IdfGroup["id"];
+  location_id: Location["location_id"] | null;
+  description: string | null;
   room_status: RoomStatus;
-}
-
-export interface RoomMapping {
-  mapping_id: UUID;
-  old_room_id: Room["room_id"];
-  new_room_id: Room["room_id"];
 }
