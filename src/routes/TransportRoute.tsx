@@ -21,10 +21,12 @@ import {
   validateVehicleNumber,
 } from "../domain/validation";
 import { useRelocation } from "../state/relocation";
+import { useToast } from "../state/toast";
 import { PackingNumberScanner } from "../components/PackingNumberScanner";
 
 export function TransportRoute() {
   const navigate = useNavigate();
+  const { showSuccessToast } = useToast();
   const { createTransport, error, loading, locations, rooms, submitting, units } =
     useRelocation();
   const [step, setStep] = useState(0);
@@ -87,6 +89,12 @@ export function TransportRoute() {
 
     if (created) {
       navigate({ to: "/processes" });
+      showSuccessToast({
+        title: "ההובלה שוגרה בהצלחה",
+        message: "ההובלה נוצרה במערכת וממתינה לקבלה ביעד.",
+        idLabel: "מספר הובלה",
+        idValue: created.moving_id,
+      });
     }
   };
 

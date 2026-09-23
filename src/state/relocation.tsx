@@ -47,13 +47,13 @@ type RelocationContextValue = RelocationData & {
     destination_room_id: Room["room_id"];
     box_type: BoxType;
     items: Array<{ catalog_id: CatalogueItem["catalog_id"]; quantity: number }>;
-  }) => Promise<boolean>;
+  }) => Promise<PackingUnit | null>;
   createTransport: (payload: {
     moving_type: MovingType;
     vehicle_number?: string;
     vehicle_details?: string;
     packing_ids: PackingUnit["packing_id"][];
-  }) => Promise<boolean>;
+  }) => Promise<MovingUnit | null>;
   receiveTransport: (
     movingId: MovingUnit["moving_id"],
     packingIds: PackingUnit["packing_id"][],
@@ -231,9 +231,9 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const postAndReload = useCallback(
-    async (path: string, payload: unknown) => {
+    async <T,>(path: string, payload: unknown): Promise<T | null> => {
       if (submitting) {
-        return false;
+        return null;
       }
 
       setSubmitting(true);
@@ -249,11 +249,12 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
           throw await readError(response);
         }
 
+        const body = (await response.json().catch(() => null)) as T | null;
         await reload();
-        return true;
+        return body;
       } catch (caught) {
         handleError(caught);
-        return false;
+        return null;
       } finally {
         setSubmitting(false);
       }
@@ -262,26 +263,43 @@ export function RelocationProvider({ children }: { children: ReactNode }) {
   );
 
   const createPacking = useCallback(
-    (payload: Parameters<RelocationContextValue["createPacking"]>[0]) =>
-      postAndReload("/api/packing", payload),
+    async (payload: Parameters<RelocationContextValue["createPacking"]>[0]) => {
+      const result = await postAndReload<{ unit: PackingUnit }>("/api/packing", payload);
+      return result?.unit ?? null;
+    },
     [postAndReload],
   );
 
   const createTransport = useCallback(
-    (payload: Parameters<RelocationContextValue["createTransport"]>[0]) =>
-      postAndReload("/api/transports", payload),
+    async (payload: Parameters<RelocationContextValue["createTransport"]>[0]) => {
+      const result = await postAndReload<{ transport: MovingUnit }>(
+        "/api/transports",
+        payload,
+      );
+      return result?.transport ?? null;
+    },
     [postAndReload],
   );
 
   const receiveTransport = useCallback(
-    (moving_id: MovingUnit["moving_id"], packing_ids: PackingUnit["packing_id"][]) =>
-      postAndReload("/api/receiving", { moving_id, packing_ids }),
+    async (moving_id: MovingUnit["moving_id"], packing_ids: PackingUnit["packing_id"][]) => {
+      const result = await postAndReload<{ ok: boolean }>("/api/receiving", {
+        moving_id,
+        packing_ids,
+      });
+      return result !== null;
+    },
     [postAndReload],
   );
 
   const distributeUnit = useCallback(
-    (packing_id: PackingUnit["packing_id"], item_ids: Item["item_id"][]) =>
-      postAndReload("/api/distribution", { packing_id, item_ids }),
+    async (packing_id: PackingUnit["packing_id"], item_ids: Item["item_id"][]) => {
+      const result = await postAndReload<{ ok: boolean }>("/api/distribution", {
+        packing_id,
+        item_ids,
+      });
+      return result !== null;
+    },
     [postAndReload],
   );
 
