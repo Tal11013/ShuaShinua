@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { RoomStatus, UserRole } from "../../types";
 import { MobileShell } from "../components/MobileShell";
 import { getGroupLabel } from "../domain/display";
@@ -25,35 +18,55 @@ const statusClass = {
   MOVED: "success",
 };
 
-const chartLabels = {
-  closed: "עברו",
-  open: "לא עברו",
-  transition: "במעבר",
+type RoomStatusKey = "closed" | "transition" | "open";
+
+const roomStatusMeta: Array<{
+  key: RoomStatusKey;
+  label: string;
+  color: string;
+  legendClass: string;
+}> = [
+  { key: "closed", label: "עברו", color: "var(--success)", legendClass: "success" },
+  { key: "transition", label: "במעבר", color: "var(--warning)", legendClass: "warning" },
+  { key: "open", label: "לא עברו", color: "var(--destructive)", legendClass: "destructive" },
+];
+
+type GroupProgressRow = {
+  id: number;
+  label: string;
+  total: number;
+  closed: number;
+  transition: number;
+  open: number;
+  progress: number;
+  closedPct: number;
+  transitionPct: number;
+  openPct: number;
 };
 
-function ChartTooltip({
+function DonutTooltip({
   active,
   payload,
-  label,
 }: {
   active?: boolean;
-  payload?: Array<{ name?: keyof typeof chartLabels; value?: number }>;
-  label?: string;
+  payload?: Array<{ value?: number; payload?: { label: string } }>;
 }) {
-  if (!active || !payload?.length) {
+  const entry = payload?.[0];
+
+  if (!active || !entry?.payload) {
     return null;
   }
 
   return (
     <div className="chart-tooltip" dir="rtl">
-      <strong>{label}</strong>
-      {payload.map((entry) => (
-        <span key={entry.name}>
-          {entry.name ? chartLabels[entry.name] : ""}: {entry.value ?? 0}
-        </span>
-      ))}
+      <strong>{entry.payload.label}</strong>
+      <span>{entry.value ?? 0} חדרים</span>
     </div>
   );
+}
+
+function groupTooltipText(row: GroupProgressRow) {
+  return `${row.label} — עברו: ${row.closed}, במעבר: ${row.transition}, לא עברו: ${row.open} (${row.total} חדרים · ${Math.round(row.progress * 100)}% הושלם)`;
 }
 
 async function readError(response: Response) {
@@ -90,24 +103,50 @@ export function ManagementReportRoute() {
       room.room_status === RoomStatus.PACKING_PROCESS ||
       room.room_status === RoomStatus.WAITING_GRITA,
   ).length;
-  const chartData = visibleGroups.map((group) => {
-    const groupRooms = rooms.filter((room) => room.group_id === group.id);
+  const totalVisibleRooms = closedCount + openCount + transitionCount;
+  const completionPct = totalVisibleRooms
+    ? Math.round((closedCount / totalVisibleRooms) * 100)
+    : 0;
 
-    return {
-      label: getGroupLabel(group),
-      closed: groupRooms.filter(
+  const statusData: Array<{ key: RoomStatusKey; label: string; value: number; color: string }> =
+    roomStatusMeta.map((meta) => ({
+      ...meta,
+      value:
+        meta.key === "closed" ? closedCount : meta.key === "open" ? openCount : transitionCount,
+    }));
+  const hasMultipleSlices = statusData.filter((entry) => entry.value > 0).length > 1;
+
+  const groupProgress: GroupProgressRow[] = visibleGroups
+    .map((group) => {
+      const groupRooms = rooms.filter((room) => room.group_id === group.id);
+      const closed = groupRooms.filter(
         (room) => room.room_status === RoomStatus.CLOSED_ROOM,
-      ).length,
-      open: groupRooms.filter(
+      ).length;
+      const open = groupRooms.filter(
         (room) => room.room_status === RoomStatus.WAITING_FOR_STATUS,
-      ).length,
-      transition: groupRooms.filter(
+      ).length;
+      const transition = groupRooms.filter(
         (room) =>
           room.room_status === RoomStatus.PACKING_PROCESS ||
           room.room_status === RoomStatus.WAITING_GRITA,
-      ).length,
-    };
-  });
+      ).length;
+      const total = groupRooms.length;
+
+      return {
+        id: group.id,
+        label: getGroupLabel(group),
+        total,
+        closed,
+        transition,
+        open,
+        progress: total ? closed / total : 0,
+        closedPct: total ? (closed / total) * 100 : 0,
+        transitionPct: total ? (transition / total) * 100 : 0,
+        openPct: total ? (open / total) * 100 : 0,
+      };
+    })
+    .filter((group) => group.total > 0)
+    .sort((a, b) => b.progress - a.progress || b.total - a.total);
 
   useEffect(() => {
     if (!currentUser) {
@@ -193,36 +232,143 @@ export function ManagementReportRoute() {
 
       <section className="chart-card card-soft">
         <div className="section-head">
+          <h2>התקדמות כוללת</h2>
+          <span className="chart-subtitle">{totalVisibleRooms} חדרים סה״כ</span>
+        </div>
+        <div className="donut-wrap">
+          {totalVisibleRooms > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    dataKey="value"
+                    nameKey="label"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={68}
+                    outerRadius={90}
+                    startAngle={90}
+                    endAngle={-270}
+                    paddingAngle={hasMultipleSlices ? 3 : 0}
+                    cornerRadius={6}
+                    stroke="none"
+                    isAnimationActive={false}
+                  >
+                    {statusData.map((entry) => (
+                      <Cell key={entry.key} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<DonutTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="donut-center">
+                <strong>{completionPct}%</strong>
+                <span>הושלם</span>
+              </div>
+            </>
+          ) : (
+            <p className="state-message">אין נתונים להצגה.</p>
+          )}
+        </div>
+        {totalVisibleRooms > 0 ? (
+          <ul className="donut-legend">
+            {statusData.map((entry) => (
+              <li key={entry.key}>
+                <span
+                  className="donut-legend-dot"
+                  style={{ background: entry.color }}
+                  aria-hidden="true"
+                />
+                <span className="donut-legend-label">{entry.label}</span>
+                <span className="donut-legend-value">{entry.value}</span>
+                <span className="donut-legend-pct">
+                  {Math.round((entry.value / totalVisibleRooms) * 100)}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
+      <section className="chart-card card-soft">
+        <div className="section-head">
           <h2>פילוח לפי קבוצה</h2>
         </div>
         <div className="legend" aria-label="מקרא סטטוסים">
-          <span className="legend-item success">עברו</span>
-          <span className="legend-item destructive">לא עברו</span>
-          <span className="legend-item warning">במעבר</span>
+          {roomStatusMeta.map((meta) => (
+            <span key={meta.key} className={`legend-item ${meta.legendClass}`}>
+              {meta.label}
+            </span>
+          ))}
         </div>
-        <div className="chart-wrap">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart
-              data={chartData}
-              layout="vertical"
-              margin={{ top: 8, right: 0, left: 8, bottom: 0 }}
-            >
-              <XAxis type="number" allowDecimals={false} hide />
-              <YAxis
-                type="category"
-                dataKey="label"
-                width={88}
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 12 }}
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="closed" stackId="rooms" fill="var(--success)" />
-              <Bar dataKey="open" stackId="rooms" fill="var(--destructive)" />
-              <Bar dataKey="transition" stackId="rooms" fill="var(--warning)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {groupProgress.length > 0 ? (
+          <>
+            <div className="bar-chart-wrap">
+              {groupProgress.map((row) => {
+                const segments = roomStatusMeta
+                  .map((meta) => ({
+                    key: meta.key,
+                    color: meta.color,
+                    pct:
+                      meta.key === "closed"
+                        ? row.closedPct
+                        : meta.key === "transition"
+                          ? row.transitionPct
+                          : row.openPct,
+                  }))
+                  .filter((segment) => segment.pct > 0);
+
+                return (
+                  <div className="bar-row" key={row.id}>
+                    <div className="bar-row-label">{row.label}</div>
+                    <div className="bar-track" title={groupTooltipText(row)}>
+                      {segments.map((segment, index) => {
+                        let radius = "0";
+
+                        if (segments.length === 1) {
+                          radius = "4px";
+                        } else if (index === 0) {
+                          radius = "4px 0 0 4px";
+                        } else if (index === segments.length - 1) {
+                          radius = "0 4px 4px 0";
+                        }
+
+                        return (
+                          <div
+                            key={segment.key}
+                            className="bar-segment"
+                            style={{
+                              width: `${segment.pct}%`,
+                              background: segment.color,
+                              borderRadius: radius,
+                              borderInlineEnd:
+                                index < segments.length - 1
+                                  ? "2px solid var(--card)"
+                                  : undefined,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="grid-axis">
+              <div />
+              <div className="grid-axis-ticks">
+                <span style={{ left: "0%" }}>0%</span>
+                <span style={{ left: "25%" }}>25%</span>
+                <span style={{ left: "50%" }}>50%</span>
+                <span style={{ left: "75%" }}>75%</span>
+                <span style={{ left: "100%" }}>100%</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="state-message">אין נתונים להצגה.</p>
+        )}
       </section>
 
       {!loading && !error && rows.length === 0 ? (
@@ -259,4 +405,3 @@ export function ManagementReportRoute() {
     </MobileShell>
   );
 }
-
