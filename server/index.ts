@@ -6,6 +6,7 @@ import { errorHandler } from "./http.js";
 import { usersRouter } from "./routes/users.js";
 import { groupsRouter } from "./routes/groups.js";
 import { relocationRouter } from "./routes/relocation.js";
+import { agentRouter } from "./routes/agent.js";
 import {
   categoriesRouter,
   groupCodesRouter,
@@ -15,7 +16,6 @@ import {
   roomsRouter,
   subCategoriesRouter,
 } from "./routes/operations.js";
-
 const app = express();
 const port = Number(process.env.PORT || 3001);
 
@@ -51,6 +51,7 @@ app.use("/api/mapping-reports", mappingReportsRouter);
 app.use("/api/item-types", itemTypesRouter);
 app.use("/api/categories", categoriesRouter);
 app.use("/api/sub-categories", subCategoriesRouter);
+app.use(agentRouter);
 app.use("/api", relocationRouter);
 
 app.use("/api", (_request, response) => {
@@ -58,7 +59,6 @@ app.use("/api", (_request, response) => {
 });
 
 app.use(errorHandler);
-
 app.listen(port, () => {
   console.log(`Express API running at http://localhost:${port}`);
 });

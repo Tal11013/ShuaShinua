@@ -8,6 +8,7 @@ import {
   YAxis,
 } from "recharts";
 import { RoomStatus, UserRole } from "../../types";
+import { ChatFab } from "../components/ChatFab";
 import { MobileShell } from "../components/MobileShell";
 import { getGroupLabel } from "../domain/display";
 import type { GroupReportRow } from "../domain/report";
@@ -256,6 +257,7 @@ export function ManagementReportRoute() {
           </article>
         ))}
       </section>
+      <ChatFab />
     </MobileShell>
   );
 }
