@@ -18,10 +18,14 @@ function getPaddleOcr() {
         PaddleOCR.create({
           textDetectionModelName: "PP-OCRv5_mobile_det",
           textRecognitionModelName: "PP-OCRv5_mobile_rec",
-          worker: true,
+          // The SDK's published worker bundle is not reliably resolved by
+          // Vite's development server. Running on the main thread avoids the
+          // missing worker-entry asset while keeping the same OCR pipeline.
+          worker: false,
           ortOptions: {
             backend: "wasm",
-            wasmPaths: "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/",
+            wasmPaths:
+              "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/",
             numThreads: 1,
             simd: true,
           },
@@ -186,7 +190,9 @@ export function PackingNumberScanner({
       closeScanner();
     } catch (caught) {
       console.error("PaddleOCR.js recognition failed:", caught);
-      setError("זיהוי המספר נכשל. יש לבדוק את החיבור לאינטרנט ולנסות שוב כשהמספר מואר וברור.");
+      const reason =
+        caught instanceof Error ? caught.message : "שגיאה לא ידועה";
+      setError(`זיהוי המספר נכשל: ${reason}`);
       setStatus("ready");
     }
   };
