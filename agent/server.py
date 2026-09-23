@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
@@ -7,6 +8,22 @@ import os
 from agent import run_conversation, init_client
 
 app = FastAPI(title="Logistics Agent API")
+
+AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
+IMAGES_DIR = os.path.join(AGENT_DIR, "images")
+os.makedirs(IMAGES_DIR, exist_ok=True)
+
+# Generated charts only (tools save them as images/<name>.png). The Express
+# server proxies /agent-assets/* here, so the browser never calls this service.
+app.mount("/agent-assets/images", StaticFiles(directory=IMAGES_DIR), name="agent-images")
+
+
+# The Express API is the only intended caller: it checks the user's login and
+# sends this shared secret. Unset AGENT_TOKEN (local dev) disables the check.
+def require_agent_token(x_agent_token: Optional[str] = Header(default=None)):
+    expected = os.environ.get("AGENT_TOKEN")
+    if expected and x_agent_token != expected:
+        raise HTTPException(status_code=401, detail="Invalid agent token")
 
 # Allow CORS for development
 app.add_middleware(
@@ -33,7 +50,11 @@ class ChatResponse(BaseModel):
     messages: List[Dict[str, Any]]
     rate_limit_info: Optional[Dict[str, Any]] = None
 
-@app.get("/api/colab_status")
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "Logistics Agent API"}
+
+@app.get("/api/colab_status", dependencies=[Depends(require_agent_token)])
 async def colab_status():
     colab_base = os.environ.get("COLAB_API_BASE")
     if not colab_base:
@@ -50,7 +71,7 @@ async def colab_status():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_agent_token)])
 async def chat_endpoint(request: ChatRequest):
     try:
         messages_list = request.messages if request.messages is not None else None
@@ -81,4 +102,4 @@ async def chat_endpoint(request: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))

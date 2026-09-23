@@ -116,6 +116,37 @@ p {
   padding: 16px 16px 92px;
 }
 
+/* Pinned to the left edge of the app column (max 480px), not the window. */
+.chat-fab {
+  position: fixed;
+  left: max(16px, calc(50% - 240px + 16px));
+  bottom: calc(66px + 16px + env(safe-area-inset-bottom, 0px));
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: oklch(1 0 0);
+  box-shadow: 0 8px 20px oklch(0.575 0.201 262 / 0.35);
+  transition: transform 0.15s ease;
+}
+
+.chat-fab:active {
+  transform: scale(0.94);
+}
+
+.chat-fab:focus-visible {
+  outline: 3px solid oklch(0.575 0.201 262 / 0.4);
+  outline-offset: 3px;
+}
+
+/* Keep the last card scrollable out from under the button. */
+.shell-content:has(.chat-fab) {
+  padding-bottom: 168px;
+}
+
 .shell-footer {
   position: sticky;
   bottom: 66px;

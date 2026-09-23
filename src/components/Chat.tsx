@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { apiUrl } from '../lib/api';
+import { useRelocation } from '../state/relocation';
 import './Chat.css';
 
 type Message = {
@@ -9,6 +11,8 @@ type Message = {
 };
 
 export default function Chat() {
+    // Sends the login header and resolves VITE_API_URL in production.
+    const { api } = useRelocation();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -43,12 +47,12 @@ export default function Chat() {
 
     useEffect(() => {
         if (selectedModel.startsWith('colab/')) {
-            fetch('/api/colab_status')
+            api('/api/colab_status')
                 .then(res => res.json())
                 .then(data => setColabStatus(data.status))
                 .catch(() => setColabStatus('error'));
         }
-    }, [selectedModel]);
+    }, [api, selectedModel]);
 
     const handleStop = () => {
         if (abortControllerRef.current) {
@@ -71,9 +75,8 @@ export default function Chat() {
         abortControllerRef.current = new AbortController();
 
         try {
-            const response = await fetch('/api/chat', {
+            const response = await api('/api/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     user_prompt: userPrompt,
                     messages: messages.length > 0 ? messages : undefined,
@@ -110,7 +113,7 @@ export default function Chat() {
                     displayElements.push({
                         key: `tool-img-${index}`,
                         role: 'assistant',
-                        imagePath: `/agent-assets/${data.file_path}`
+                        imagePath: apiUrl(`/agent-assets/${data.file_path}`)
                     });
                 }
             } catch (e) { }

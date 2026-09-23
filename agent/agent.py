@@ -20,9 +20,11 @@ def init_client():
 
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        print("GROQ_API_KEY environment variable not found.")
+        # Don't prompt: this runs inside the API server, where input() would hang
+        # startup. Groq models fail per request; other providers still work.
+        print("GROQ_API_KEY not set; Groq models are unavailable.")
         print("You can get a free API key instantly at https://console.groq.com/keys")
-        api_key = input("Please enter your Groq API Key: ").strip()
+        api_key = "missing"
     # We pass the Groq API key and override the base_url to Groq's endpoint
     GROQ_CLIENT = OpenAI(
         api_key=api_key,
@@ -434,7 +436,7 @@ def run_conversation(user_prompt: str, messages: list = None, model: str = None)
                     "tool_call_id": tool_call.id,
                     "role": "tool",
                     "name": function_name,
-                    "content": json.dumps(function_response, ensure_ascii=False),
+                    "content": json.dumps(function_response, ensure_ascii=False, default=str),
                 }
             )
             

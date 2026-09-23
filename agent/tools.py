@@ -1,5 +1,8 @@
 import os
 import json
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
+from uuid import UUID
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import Dict, List, Any
@@ -21,16 +24,33 @@ def _get_connection():
     conn = psycopg2.connect(db_url)
     return conn
 
+def _json_safe(value: Any) -> Any:
+    """Converts Postgres values that json.dumps can't handle (numeric, timestamps, uuid)."""
+    if isinstance(value, Decimal):
+        # SUM/AVG return numeric: keep whole numbers as ints.
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, (datetime, date, time)):
+        return value.isoformat()
+    if isinstance(value, (UUID, timedelta)):
+        return str(value)
+    return value
+
 def execute_sql_query(query: str) -> Dict[str, Any]:
     """
     Executes a read-only SQL SELECT query on the logistics PostgreSQL database.
     """
     if not query.strip().upper().startswith("SELECT") and not query.strip().upper().startswith("WITH"):
         return {"error": "Only SELECT queries are allowed for security."}
-        
+    # One statement only: "SELECT 1; DROP TABLE ..." would otherwise pass the check above.
+    if ";" in query.strip().rstrip(";"):
+        return {"error": "Only a single SELECT statement is allowed."}
+
     try:
         conn = _get_connection()
+        # Enforced by Postgres, so data-modifying CTEs (WITH ... DELETE) fail too.
+        conn.set_session(readonly=True)
         cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SET statement_timeout = '15s';")
         
         # In PostgreSQL, we must use the correct schema. Usually it's 'moving_south_operation' or 'public'
         # To avoid forcing the LLM to guess, we'll set the search path automatically.
@@ -42,7 +62,7 @@ def execute_sql_query(query: str) -> Dict[str, Any]:
         # Get column names
         columns = [desc[0] for desc in cursor.description] if cursor.description else []
         
-        results = [dict(row) for row in rows]
+        results = [{key: _json_safe(value) for key, value in row.items()} for row in rows]
             
         conn.close()
         

@@ -1,16 +1,12 @@
 import "./env.js";
 import cors from "cors";
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 import { checkSupabaseConnection } from "./supabaseHealth.js";
 import { errorHandler } from "./http.js";
 import { usersRouter } from "./routes/users.js";
 import { groupsRouter } from "./routes/groups.js";
 import { relocationRouter } from "./routes/relocation.js";
+import { agentRouter } from "./routes/agent.js";
 import {
   categoriesRouter,
   groupCodesRouter,
@@ -34,36 +30,11 @@ const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 
-// Serve static files from the agent directory (for generated charts)
-app.use("/agent-assets", express.static(path.join(__dirname, "../agent")));
-
 app.get("/api/health", (_request, response) => {
   response.json({
     status: "ok",
     service: "ShuaShinua API",
   });
-});
-
-app.post("/api/chat", async (req, res) => {
-  try {
-    const response = await fetch("http://localhost:8000/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(req.body),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Agent API returned ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    console.error("Error communicating with Agent API:", error);
-    res.status(500).json({ error: "Failed to communicate with Agent API" });
-  }
 });
 
 app.get("/api/health/supabase", async (_request, response) => {
@@ -80,6 +51,7 @@ app.use("/api/mapping-reports", mappingReportsRouter);
 app.use("/api/item-types", itemTypesRouter);
 app.use("/api/categories", categoriesRouter);
 app.use("/api/sub-categories", subCategoriesRouter);
+app.use(agentRouter);
 app.use("/api", relocationRouter);
 
 app.use("/api", (_request, response) => {
