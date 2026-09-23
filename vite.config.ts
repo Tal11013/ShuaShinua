@@ -18,6 +18,7 @@ export default defineConfig({
     allowedHosts: [".trycloudflare.com"],
     proxy: {
       "/api": "http://localhost:3001",
+      "/agent-assets": "http://localhost:3001"
     },
   },
 });

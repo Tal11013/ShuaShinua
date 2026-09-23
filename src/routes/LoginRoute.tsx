@@ -27,13 +27,8 @@ export function LoginRoute() {
   return (
     <main className="login-shell" dir="rtl">
       <section className="login-card card-soft">
-        <span className="login-icon">
-          <LogIn aria-hidden="true" size={28} />
-        </span>
         <div>
-          <p className="eyebrow">כניסה למערכת</p>
-          <h1>פינוי ציוד</h1>
-          <p>הזדהות לפי מספר זהות</p>
+          <h1 className="login-title">כניסה למערכת</h1>
         </div>
         <label className="select-label">
           מספר זהות

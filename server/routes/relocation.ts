@@ -52,7 +52,7 @@ type Access = {
   memberGroupIds: Set<number>;
 };
 
-type AuthedRequest = Request & { access?: Access };
+export type AuthedRequest = Request & { access?: Access };
 
 function check<T>(result: { data: T | null; error: PostgrestError | null }): T {
   if (result.error) throw fromPostgrest(result.error);
@@ -285,7 +285,7 @@ async function loadScope(access: Access, unitId?: string) {
 
 // ---- auth ----
 
-async function authenticate(request: AuthedRequest, _response: Response, next: NextFunction) {
+export async function authenticate(request: AuthedRequest, _response: Response, next: NextFunction) {
   const identityNum = request.header("x-user-id") ?? "";
   const user = IDENTITY_NUMBER_REGEX.test(identityNum) ? await loadUser(identityNum) : null;
   if (!user) throw new HttpError(401, "יש להתחבר מחדש.");
@@ -294,7 +294,7 @@ async function authenticate(request: AuthedRequest, _response: Response, next: N
   next();
 }
 
-function getAccess(request: AuthedRequest) {
+export function getAccess(request: AuthedRequest) {
   if (!request.access) throw new Error("authenticate middleware missing");
   return request.access;
 }
@@ -376,10 +376,13 @@ relocationRouter.post("/packing", authenticate, async (request: AuthedRequest, r
   }
 
   const catalogue = await loadCatalogue();
+  // Personal boxes carry no tracked items — skip item validation for that type.
+  const requiresItems = boxType !== BoxType.PERSONAL_BOX;
   if (
-    !Array.isArray(items) ||
-    items.length === 0 ||
-    !validateCatalogueQuantities(items, catalogue)
+    requiresItems &&
+    (!Array.isArray(items) ||
+      items.length === 0 ||
+      !validateCatalogueQuantities(items, catalogue))
   ) {
     throw new HttpError(400, "יש לבחור פריטים תקינים עם כמות גדולה מאפס.");
   }

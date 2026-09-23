@@ -1,0 +1,218 @@
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    background-color: #f5f5f5;
+    overflow: hidden;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.chat-empty {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    color: #888;
+    font-size: 1.1em;
+}
+
+.message {
+    display: flex;
+    width: 100%;
+}
+
+.message.user {
+    justify-content: flex-start; /* RTL: user on right */
+}
+
+.message.assistant {
+    justify-content: flex-end; /* RTL: assistant on left */
+}
+
+.message-content {
+    max-width: 70%;
+    padding: 10px 15px;
+    border-radius: 15px;
+    background-color: white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.message.user .message-content {
+    background-color: #007bff;
+    color: white;
+    border-top-right-radius: 0;
+}
+
+.message.assistant .message-content {
+    background-color: #e9ecef;
+    color: #333;
+    border-top-left-radius: 0;
+}
+
+.message-content p {
+    margin: 0;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.message-image {
+    margin-top: 10px;
+}
+
+.message-image img {
+    max-width: 100%;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    object-fit: contain;
+}
+
+.loading .message-content {
+    color: #666;
+    font-style: italic;
+}
+
+.chat-input-form {
+    display: flex;
+    padding: 15px;
+    background-color: white;
+    border-top: 1px solid #ddd;
+}
+
+.chat-input-form input {
+    flex: 1;
+    padding: 10px 15px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    font-size: 16px;
+    outline: none;
+}
+
+.chat-input-form input:focus {
+    border-color: #007bff;
+}
+
+.chat-input-form button {
+    margin-right: 10px; /* RTL spacing */
+    padding: 12px 24px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    font-family: inherit;
+}
+
+.chat-input-form button:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.chat-input-form button:disabled {
+    background-color: #333;
+    color: #666;
+    cursor: not-allowed;
+}
+
+/* Stop Button Styles */
+.chat-input-form button.stop-button {
+    background-color: #dc3545;
+}
+
+.chat-input-form button.stop-button:hover {
+    background-color: #bb2d3b;
+}
+
+/* Rate Limit Badge */
+.rate-limit-badge {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: #1e1e1e;
+    color: #a0a0a0;
+    font-size: 0.75rem;
+    border-bottom: 1px solid #333;
+    font-family: 'Inter', sans-serif;
+}
+
+.rate-limit-label {
+    font-weight: 600;
+    color: #ccc;
+}
+
+.rate-limit-value {
+    font-family: monospace;
+    background: #2a2a2a;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.rate-limit-value.warning {
+    background: #ff9800;
+    color: #fff;
+    font-weight: bold;
+}
+
+.rate-limit-separator {
+    color: #555;
+}
+
+/* Chat Header & Model Selector */
+.chat-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 16px;
+    background-color: #1a1a1a;
+    border-bottom: 1px solid #333;
+}
+
+.model-selector-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #aaa;
+}
+
+.model-select {
+    background-color: #2a2a2a;
+    color: #fff;
+    border: 1px solid #444;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+}
+
+.model-select:focus {
+    border-color: #007bff;
+}
+
+.model-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.chat-input-form button:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.chat-input-form button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}

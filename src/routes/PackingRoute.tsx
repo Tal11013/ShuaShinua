@@ -68,6 +68,14 @@ export function PackingRoute() {
     setDestination((current) => (current.unit_id ? current : initialSelection));
   }, [groups]);
 
+  const isPersonalBox = boxType === BoxType.PERSONAL_BOX;
+
+  // Visible step count collapses from 4 to 3 for personal box (items step skipped).
+  const totalSteps = isPersonalBox ? 3 : 4;
+  // Map internal step index to a 1-based display number, collapsing step 2 out
+  // of the count when it will be skipped.
+  const displayStep = isPersonalBox && step === 3 ? 3 : step + 1;
+
   const canContinue =
     step === 0
       ? source.room_id !== null
@@ -76,6 +84,17 @@ export function PackingRoute() {
         : step === 2
           ? selectedItems.length > 0
           : destination.room_id !== null;
+
+  const handleBack = () => {
+    setValidationMessage("");
+    // When on the destination step (3) with personal box, jump back over the
+    // skipped items step directly to box-type selection (step 1).
+    if (step === 3 && isPersonalBox) {
+      setStep(1);
+    } else {
+      setStep((current) => current - 1);
+    }
+  };
 
   const updateQuantity = (catalogId: number, value: string) => {
     const quantity = sanitizeQuantity(value);
@@ -110,17 +129,30 @@ export function PackingRoute() {
         setDestination({ unit_id: source.unit_id, group_id: null, room_id: null });
       }
 
-      setStep((current) => current + 1);
+      // Skip the items step (2) when personal box is selected.
+      const nextStep = step === 1 && isPersonalBox ? 3 : step + 1;
+
+      // Sync destination unit when jumping straight from step 1 to step 3.
+      if (nextStep === 3 && destination.unit_id !== source.unit_id) {
+        setDestination({ unit_id: source.unit_id, group_id: null, room_id: null });
+      }
+
+      setStep(nextStep);
       return;
     }
 
     if (
       !boxType ||
-      selectedItems.length === 0 ||
       source.room_id === null ||
       destination.room_id === null
     ) {
-      setValidationMessage("יש להשלים מקור, פריטים וחדר יעד במיקום החדש.");
+      setValidationMessage("יש להשלים מקור וחדר יעד במיקום החדש.");
+      return;
+    }
+
+    // Personal box ships with no tracked items; all other types require at least one.
+    if (!isPersonalBox && selectedItems.length === 0) {
+      setValidationMessage("יש לבחור לפחות פריט אחד לאריזה.");
       return;
     }
 
@@ -128,7 +160,7 @@ export function PackingRoute() {
       source_room_id: source.room_id,
       destination_room_id: destination.room_id,
       box_type: boxType,
-      items: selectedItems,
+      items: isPersonalBox ? [] : selectedItems,
     });
 
     if (created) {
@@ -139,17 +171,14 @@ export function PackingRoute() {
   return (
     <MobileShell
       title="יצירת אריזה"
-      subtitle={`שלב ${step + 1} מתוך 4`}
+      subtitle=""
       backTo="/processes"
       footer={
         <div className="footer-actions">
           {step > 0 ? (
             <GhostButton
               disabled={submitting}
-              onClick={() => {
-                setValidationMessage("");
-                setStep((current) => current - 1);
-              }}
+              onClick={handleBack}
             >
               חזרה
             </GhostButton>
