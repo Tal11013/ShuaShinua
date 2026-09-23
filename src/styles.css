@@ -641,7 +641,10 @@ code {
   font-size: 0.78rem;
   font-weight: 800;
 }
-
+.login-title {
+  width: 100%;
+  text-align: center;
+}
 .field-grid input,
 .select-label input,
 .select-label select,
