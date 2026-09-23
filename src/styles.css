@@ -94,7 +94,7 @@ p {
   width: 44px;
   height: 44px;
   border-radius: 999px;
-  color: var(--primary);
+  color: oklch(0.44 0.015 260);
 }
 
 .logout-button {
